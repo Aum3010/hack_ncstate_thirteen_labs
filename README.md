@@ -52,7 +52,7 @@ Open http://localhost:3000. Use Register/Login (password). Link wallet on Dashbo
 ### Full stack with Docker
 
 ```bash
-docker-compose up --build
+docker compose up --build
 ```
 
 - Frontend: http://localhost:3000
