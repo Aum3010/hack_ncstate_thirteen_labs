@@ -2,28 +2,9 @@ from flask import Blueprint, jsonify
 from app import db
 from app.routes.auth import get_current_user_id
 from app.models import Wallet, Transaction
-<<<<<<< Updated upstream
 from app.services.solana import fetch_and_normalize_transactions
-=======
->>>>>>> Stashed changes
 
 wallets_bp = Blueprint("wallets", __name__)
-
-
-@wallets_bp.route("/<int:wallet_id>/sync", methods=["POST"])
-def sync_wallet(wallet_id):
-    uid = get_current_user_id()
-    if not uid:
-        return jsonify({"error": "Not authenticated"}), 401
-    wallet = Wallet.query.filter_by(id=wallet_id, user_id=uid).first()
-    if not wallet:
-        return jsonify({"error": "Wallet not found"}), 404
-    from app.services.solana import fetch_and_normalize_transactions
-    txns = fetch_and_normalize_transactions(wallet.address, uid, limit=150)
-    for t in txns:
-        db.session.add(Transaction(**t))
-    db.session.commit()
-    return jsonify({"synced": len(txns), "message": f"Added {len(txns)} transactions"})
 
 
 @wallets_bp.route("/", methods=["GET"])
