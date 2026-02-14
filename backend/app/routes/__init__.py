@@ -7,3 +7,6 @@ from app.routes.cards import cards_bp
 from app.routes.documents import documents_bp
 from app.routes.assistant import assistant_bp
 from app.routes.orderbook import orderbook_bp
+from app.routes.goals import goals_bp
+from app.routes.dashboard import dashboard_bp
+from app.routes.insights import insights_bp

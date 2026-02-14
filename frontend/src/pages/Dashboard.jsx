@@ -5,6 +5,8 @@ import { listTransactions } from '../api/transactions'
 import { listWallets } from '../api/wallets'
 import { getReminders } from '../api/reminders'
 import WalletConnect from '../components/WalletConnect'
+import HeroPieChart from '../components/HeroPieChart'
+import InsightsPanel from '../components/InsightsPanel'
 import './Dashboard.css'
 
 export default function Dashboard({ user }) {
@@ -37,6 +39,8 @@ export default function Dashboard({ user }) {
   return (
     <div className="dashboard">
       <h1 className="page-title">Dashboard</h1>
+      <HeroPieChart user={user} />
+      <InsightsPanel />
       <section className="dashboard-section card">
         <h2 className="section-title">Wallet</h2>
         {user?.has_wallet || wallets?.length > 0 ? (

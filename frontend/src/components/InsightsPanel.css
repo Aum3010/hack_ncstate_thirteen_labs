@@ -1,0 +1,39 @@
+.insights-panel {
+  padding: 1rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.insights-title {
+  font-size: 0.95rem;
+  color: var(--neon-green);
+  margin: 0 0 0.75rem 0;
+}
+
+.insights-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.insights-item {
+  padding: 0.4rem 0;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.insights-item:last-child {
+  border-bottom: none;
+}
+
+.insights-item.insights-bills {
+  color: var(--neon-pink);
+}
+
+.insights-item.insights-investments {
+  color: var(--neon-blue);
+}
+
+.insights-item.insights-goals {
+  color: var(--neon-green);
+}

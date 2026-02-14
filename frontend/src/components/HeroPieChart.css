@@ -1,0 +1,83 @@
+.hero-pie {
+  margin-bottom: 1.5rem;
+}
+
+.hero-card {
+  padding: 1.5rem;
+}
+
+.hero-pie-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.hero-title {
+  font-size: 1.1rem;
+  color: var(--neon-green);
+  margin: 0;
+}
+
+.hero-pie-chart-wrap {
+  position: relative;
+  min-height: 280px;
+}
+
+.hero-pie-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+}
+
+.hero-total {
+  display: block;
+  font-size: 1.5rem;
+  font-family: var(--font-mono);
+  color: var(--neon-blue);
+}
+
+.hero-sublabel {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.hero-loading,
+.hero-error {
+  color: var(--text-muted);
+  padding: 2rem;
+  text-align: center;
+}
+
+.hero-error {
+  color: var(--neon-pink);
+}
+
+.hero-legend-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 1rem;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.hero-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.hero-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.btn-sm {
+  font-size: 0.85rem;
+  padding: 0.35rem 0.6rem;
+}
