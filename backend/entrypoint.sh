@@ -17,9 +17,22 @@ done
 
 # Run migrations (single process, before any worker)
 echo "Running migrations..."
-python -m flask db upgrade
+if ! python -m flask db upgrade 2>/dev/null; then
+  echo "Migration failed (possibly orphaned revision). Resetting alembic_version via SQL..."
+  python -c "
+import os, psycopg2
+conn = psycopg2.connect(os.environ.get('DATABASE_URL', 'postgresql://nightshade:nightshade@db:5432/nightshade'))
+cur = conn.cursor()
+cur.execute(\"UPDATE alembic_version SET version_num = '001_initial'\")
+conn.commit()
+cur.close()
+conn.close()
+print('alembic_version reset to 001_initial')
+"
+  python -m flask db upgrade
+fi
 
 # Start Gunicorn (replace shell so it gets PID 1)
 # Use /tmp for pid to avoid control server error when /app is a mounted volume
 echo "Starting Gunicorn..."
-exec gunicorn -b 0.0.0.0:5000 -w 2 --pid /tmp/gunicorn.pid run:app
+exec gunicorn -b 0.0.0.0:5000 -w 2 -t 300 --pid /tmp/gunicorn.pid --worker-tmp-dir /tmp --control-socket /tmp/gunicorn.ctl run:app

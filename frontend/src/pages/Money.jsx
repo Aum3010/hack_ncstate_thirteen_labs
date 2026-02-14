@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { listTransactions, createTransaction } from '../api/transactions'
-import { listWallets } from '../api/wallets'
+import { listWallets, syncWallet } from '../api/wallets'
 import { uploadDocument, listDocuments } from '../api/documents'
 import WalletConnect from '../components/WalletConnect'
 import './Money.css'
@@ -13,6 +13,7 @@ export default function Money() {
   const [form, setForm] = useState({ amount: '', category: '', description: '' })
   const [documents, setDocuments] = useState([])
   const [uploading, setUploading] = useState(false)
+  const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState('')
 
   const load = () => {
@@ -49,6 +50,20 @@ export default function Money() {
       load()
     } catch (err) {
       setError(err.message)
+    }
+  }
+
+  const onSyncSolana = async () => {
+    if (!wallets?.[0]) return
+    setSyncing(true)
+    setError('')
+    try {
+      await syncWallet(wallets[0].id)
+      load()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSyncing(false)
     }
   }
 
@@ -91,7 +106,12 @@ export default function Money() {
       <section className="card money-section">
         <h2 className="section-title">Wallet</h2>
         {wallets?.length > 0 ? (
-          <p className="text-muted">Solana: {wallets[0].address?.slice(0, 12)}...{wallets[0].address?.slice(-8)}</p>
+          <div>
+            <p className="text-muted">Solana: {wallets[0].address?.slice(0, 12)}...{wallets[0].address?.slice(-8)}</p>
+            <button type="button" className="btn btn-primary" onClick={onSyncSolana} disabled={syncing}>
+              {syncing ? 'Syncing...' : 'Sync Solana'}
+            </button>
+          </div>
         ) : (
           <WalletConnect onConnect={load} />
         )}
