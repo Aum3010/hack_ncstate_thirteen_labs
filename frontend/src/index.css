@@ -1,0 +1,51 @@
+:root {
+  /* Metropolitan Urban Noir - neon noir */
+  --bg-dark: #0a0a0f;
+  --bg-card: #12121a;
+  --bg-elevated: #1a1a26;
+  --border: #2a2a3a;
+  --text: #e8e8ed;
+  --text-muted: #8888a0;
+  --neon-blue: #00d4ff;
+  --neon-pink: #ff2d92;
+  --neon-green: #00ff88;
+  --shadow-neon-blue: 0 0 20px rgba(0, 212, 255, 0.3);
+  --shadow-neon-pink: 0 0 20px rgba(255, 45, 146, 0.3);
+  --shadow-neon-green: 0 0 20px rgba(0, 255, 136, 0.3);
+  --font-sans: 'Space Grotesk', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background: var(--bg-dark);
+  color: var(--text);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+button {
+  font-family: var(--font-sans);
+  cursor: pointer;
+}
+
+input, select, textarea {
+  font-family: var(--font-sans);
+}
+
+a {
+  color: var(--neon-blue);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}

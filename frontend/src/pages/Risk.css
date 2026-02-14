@@ -1,0 +1,28 @@
+.risk-card {
+  margin-bottom: 1.5rem;
+}
+
+.risk-stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--border);
+  margin-top: 0.75rem;
+}
+
+.risk-label {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.risk-value {
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+.risk-value.neon-pink {
+  color: var(--neon-pink);
+}
+.risk-value.neon-green {
+  color: var(--neon-green);
+}

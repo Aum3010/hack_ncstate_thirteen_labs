@@ -1,0 +1,118 @@
+.layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-dark);
+}
+
+.layout-header {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  padding: 0.75rem 1.5rem;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.layout-brand {
+  font-weight: 700;
+  font-size: 1.25rem;
+  color: var(--neon-blue);
+  text-shadow: var(--shadow-neon-blue);
+  font-family: var(--font-mono);
+}
+
+.layout-nav {
+  display: flex;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.layout-nav-link {
+  padding: 0.5rem 0.75rem;
+  color: var(--text-muted);
+  border-radius: 4px;
+  transition: color 0.2s, background 0.2s;
+}
+.layout-nav-link:hover {
+  color: var(--text);
+  background: var(--bg-elevated);
+}
+.layout-nav-link.active {
+  color: var(--neon-blue);
+  background: rgba(0, 212, 255, 0.1);
+}
+
+.layout-user {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.layout-user-email {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.layout-main {
+  flex: 1;
+  padding: 1.5rem;
+}
+
+.btn {
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-weight: 500;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  transition: background 0.2s, color 0.2s;
+}
+.btn:hover {
+  background: var(--bg-elevated);
+}
+.btn-ghost {
+  color: var(--text-muted);
+}
+.btn-ghost:hover {
+  color: var(--neon-pink);
+}
+.btn-primary {
+  background: var(--neon-blue);
+  color: var(--bg-dark);
+}
+.btn-primary:hover {
+  box-shadow: var(--shadow-neon-blue);
+}
+.btn-danger {
+  color: var(--neon-pink);
+}
+.btn-danger:hover {
+  background: rgba(255, 45, 146, 0.15);
+}
+
+.input {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 1rem;
+}
+.input:focus {
+  outline: none;
+  border-color: var(--neon-blue);
+  box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.2);
+}
+.input::placeholder {
+  color: var(--text-muted);
+}
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.25rem;
+}

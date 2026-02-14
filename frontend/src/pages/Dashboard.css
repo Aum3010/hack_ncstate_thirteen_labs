@@ -1,0 +1,59 @@
+.dashboard {
+  max-width: 900px;
+}
+
+.page-title {
+  font-size: 1.5rem;
+  margin: 0 0 1.5rem 0;
+  color: var(--text);
+}
+
+.page-loading {
+  color: var(--text-muted);
+}
+
+.dashboard-section {
+  margin-bottom: 1.5rem;
+}
+
+.section-title {
+  font-size: 1rem;
+  color: var(--neon-green);
+  margin: 0 0 0.75rem 0;
+}
+
+.text-muted {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.bill-list-mini, .tx-list-mini {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.75rem 0;
+}
+.bill-list-mini li, .tx-list-mini li {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.bill-list-mini li:last-child, .tx-list-mini li:last-child {
+  border-bottom: none;
+}
+.bill-list-mini .due, .tx-list-mini .amount {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  color: var(--neon-pink);
+}
+.link-neon {
+  color: var(--neon-blue);
+  font-size: 0.9rem;
+}
+.link-neon:hover {
+  text-decoration: underline;
+}
+.category {
+  color: var(--text-muted);
+}
