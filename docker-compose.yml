@@ -32,7 +32,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     ports:
-      - "5000:5000"
+      - "5050:5000"
     environment:
       FLASK_APP: run:app
       FLASK_ENV: development
@@ -55,7 +55,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      REACT_APP_API_URL: http://localhost:5000
+      REACT_APP_API_URL: http://localhost:5050
       VITE_API_PROXY_TARGET: http://backend:5000
     depends_on:
       - backend
