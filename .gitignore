@@ -1,0 +1,10 @@
+.env
+docker-compose.override.yml
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Optional: ignore all cache folders recursively
+**/__pycache__/

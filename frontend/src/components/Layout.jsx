@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { logout } from '../api/auth'
 import AssistantFab from './AssistantFab'

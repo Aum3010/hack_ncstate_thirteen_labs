@@ -5,6 +5,7 @@ import { listTransactions } from '../api/transactions'
 import { listWallets } from '../api/wallets'
 import { getReminders } from '../api/reminders'
 import WalletConnect from '../components/WalletConnect'
+import HomeChatPanel from '../components/HomeChatPanel'
 import './Dashboard.css'
 
 export default function Dashboard({ user }) {
@@ -92,6 +93,7 @@ export default function Dashboard({ user }) {
         )}
         <Link to="/money" className="link-neon">Money & Crypto →</Link>
       </section>
+      <HomeChatPanel />
     </div>
   )
 }
