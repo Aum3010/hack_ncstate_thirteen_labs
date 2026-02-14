@@ -1,9 +1,12 @@
 from flask import Blueprint, request, jsonify
+from datetime import date, datetime
 from app import db
 from app.routes.auth import get_current_user_id
-from app.models import DocumentRef
+from app.models import DocumentRef, Bill, Transaction
+from app.services.invoice_parser import parse_invoice_with_gemini
 import os
 import uuid
+import json
 
 documents_bp = Blueprint("documents", __name__)
 
@@ -60,3 +63,61 @@ def upload():
     db.session.add(ref)
     db.session.commit()
     return jsonify(ref.to_dict()), 201
+
+
+@documents_bp.route("/parse-invoice", methods=["POST"])
+def parse_invoice():
+    """Upload invoice PDF/image, parse with LLM, create Bill and optionally Transaction."""
+    uid = get_current_user_id()
+    if not uid:
+        return jsonify({"error": "Not authenticated"}), 401
+    f = request.files.get("file")
+    if not f or not f.filename:
+        return jsonify({"error": "File required"}), 400
+    content = f.read()
+    parsed = parse_invoice_with_gemini(content, f.filename)
+    if not parsed:
+        return jsonify({"error": "Invoice parsing unavailable. Set GEMINI_API_KEY."}), 503
+    amount_raw = parsed.get("amount")
+    amount_cents = int(round(float(amount_raw or 0) * 100)) if amount_raw is not None else 0
+    due_date_str = parsed.get("due_date")
+    due_date = None
+    if due_date_str:
+        try:
+            due_date = date.fromisoformat(due_date_str)
+        except Exception:
+            pass
+    merchant = (parsed.get("merchant") or "Invoice").strip() or "Invoice"
+    bill = Bill(
+        user_id=uid,
+        bill_type="invoice",
+        name=merchant,
+        amount_cents=amount_cents,
+        currency="USD",
+        due_date=due_date,
+        is_recurring=False,
+    )
+    db.session.add(bill)
+    db.session.flush()
+    txn = Transaction(
+        user_id=uid,
+        amount_cents=amount_cents,
+        currency="USD",
+        category="bill_payments",
+        description=f"Invoice: {merchant}",
+        source="invoice_parsed",
+    )
+    db.session.add(txn)
+    ref = DocumentRef(
+        user_id=uid,
+        doc_type="invoice",
+        file_name=f.filename,
+        metadata_json=json.dumps({"bill_id": bill.id, "parsed": parsed}),
+    )
+    db.session.add(ref)
+    db.session.commit()
+    return jsonify({
+        "bill": bill.to_dict(),
+        "transaction": txn.to_dict(),
+        "document_ref": ref.to_dict(),
+    }), 201

@@ -8,3 +8,19 @@ __pycache__/
 
 # Optional: ignore all cache folders recursively
 **/__pycache__/
+# Keys and secrets - never commit
+scripts/wallet.json
+*.pem
+.env
+.env.local
+*.key
+
+# Dependencies
+node_modules/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/

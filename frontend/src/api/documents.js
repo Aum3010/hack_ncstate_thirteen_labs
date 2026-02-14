@@ -22,3 +22,18 @@ export async function listDocuments() {
   const data = await res.json()
   return data.documents || []
 }
+
+export async function parseInvoice(file) {
+  const form = new FormData()
+  form.append('file', file)
+  const res = await fetch(`${API}/api/documents/parse-invoice`, {
+    method: 'POST',
+    credentials: 'include',
+    body: form,
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || 'Invoice parsing failed')
+  }
+  return res.json()
+}

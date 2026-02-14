@@ -1,0 +1,95 @@
+.onboarding {
+  max-width: 520px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+.onboarding-card {
+  padding: 2rem;
+}
+
+.onboarding-progress {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.onboarding-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--border);
+  cursor: default;
+}
+
+.onboarding-dot.active {
+  background: var(--neon-blue);
+  box-shadow: var(--shadow-neon-blue);
+}
+
+.onboarding-dot:not(.active) {
+  cursor: pointer;
+  opacity: 0.6;
+}
+
+.onboarding-title {
+  font-size: 1.25rem;
+  margin: 0 0 1.5rem 0;
+  color: var(--text);
+}
+
+.onboarding-step h2 {
+  font-size: 1.1rem;
+  color: var(--neon-green);
+  margin: 0 0 0.5rem 0;
+}
+
+.onboarding-step .text-muted {
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.onboarding-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.onboarding-form .input {
+  padding: 0.6rem 0.8rem;
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+}
+
+.onboarding-form .input:focus {
+  outline: none;
+  border-color: var(--neon-blue);
+}
+
+.partition-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.partition-preset {
+  font-size: 0.85rem;
+  padding: 0.4rem 0.8rem;
+}
+
+.partition-summary {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.auth-error {
+  color: var(--neon-pink);
+  font-size: 0.9rem;
+}

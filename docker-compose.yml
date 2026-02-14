@@ -39,6 +39,7 @@ services:
       SECRET_KEY: dev-secret
       DATABASE_URL: postgresql://nightshade:nightshade@db:5432/nightshade
       REDIS_URL: redis://valkey:6379/0
+      SOLANA_RPC_URL: https://api.devnet.solana.com
     depends_on:
       db:
         condition: service_healthy
@@ -61,6 +62,7 @@ services:
     volumes:
       - ./frontend/src:/app/src
       - ./frontend/public:/app/public
+      - ./frontend/package.json:/app/package.json
 
 volumes:
   postgres_data:
