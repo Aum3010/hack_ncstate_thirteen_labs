@@ -4,11 +4,13 @@ import { logout } from '../api/auth'
 import { listBills, markPaid } from '../api/bills'
 import { listWallets, syncWallet } from '../api/wallets'
 import AssistantFab from './AssistantFab'
+import ChatBar from './ChatBar'
+import ProfileModal from './ProfileModal'
 import './Layout.css'
 // import UrbanNoirSharedBackdrop from './UrbanNoir/UrbanNoirSharedBackdrop'
 import noirBackdrop from '../../media/glamorous-skyline-12160696.webp'
 
-export default function Layout({ user, onLogout }) {
+export default function Layout({ user, onLogout, onUpdate }) {
   const navigate = useNavigate()
   const location = useLocation()
   const [notifOpen, setNotifOpen] = useState(false)
@@ -18,6 +20,7 @@ export default function Layout({ user, onLogout }) {
   const [highlightAlertId, setHighlightAlertId] = useState(null)
   const [primaryWalletId, setPrimaryWalletId] = useState(null)
   const syncingRef = useRef(false)
+  const [profileModalOpen, setProfileModalOpen] = useState(false)
 
   // Urban Noir background state
   const canvasRef = useRef(null)
@@ -392,6 +395,14 @@ export default function Layout({ user, onLogout }) {
             )}
           </div>
           <span className="layout-user-email">{user?.email || user?.username || 'User'}</span>
+          <button
+            type="button"
+            className="layout-hamburger btn btn-ghost"
+            onClick={() => setProfileModalOpen(true)}
+            aria-label="Open profile and settings"
+          >
+            ☰
+          </button>
           <button type="button" className="btn btn-ghost" onClick={handleLogout}>
             Log out
           </button>
@@ -401,6 +412,13 @@ export default function Layout({ user, onLogout }) {
         <Outlet />
       </main>
       <AssistantFab />
+      <ProfileModal
+        open={profileModalOpen}
+        onClose={() => setProfileModalOpen(false)}
+        user={user}
+        onUpdate={onUpdate}
+      />
+      <ChatBar />
     </div>
   )
 }

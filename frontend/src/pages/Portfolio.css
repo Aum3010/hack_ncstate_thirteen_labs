@@ -17,15 +17,9 @@
 
 .portfolio-scroll-container {
   position: relative;
-  height: 100vh;
-  overflow-y: auto;
-  overflow-x: hidden;
+  height: auto;
+  overflow: visible;
   z-index: 1;
-}
-
-.portfolio-scroll-spacer {
-  min-height: 250vh;
-  pointer-events: none;
 }
 
 .portfolio-hud {
