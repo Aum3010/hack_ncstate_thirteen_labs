@@ -1,6 +1,6 @@
-# Nightshade
+# Thirteen Labs
 
-Utility-first financial app: bill reminders, calendar, money & crypto, risk, and an AI assistant (Gemini via Backboard). Metropolitan urban noir UI.
+Like Dave Ramsey in your pocket. Talk to your money, understand your spending, never miss a bill, and reach your goals in plain English using multiagents, and memory layer over cryptocurrency. Metropolitan urban noir UI.
 
 ## Tech stack
 
