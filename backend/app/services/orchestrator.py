@@ -437,20 +437,49 @@ def chat(
         )
         if not r.ok:
             body_snippet = (r.text or "")[:500]
-            logger.warning(
-                "Backboard messages returned non-2xx: status=%s body=%s",
-                r.status_code,
-                body_snippet,
-            )
-            user_hint = f"Backboard returned {r.status_code}. Check server logs for details."
+            detail = ""
             try:
-                err = r.json()
-                msg = err.get("error") or err.get("message") or err.get("detail")
-                if isinstance(msg, str) and msg:
-                    user_hint = f"Backboard returned {r.status_code}: {(msg[:100])}."
+                err_json = r.json()
+                detail = (err_json.get("detail") or err_json.get("error") or err_json.get("message") or "").lower()
             except Exception:
                 pass
-            return {"text": user_hint, "action": None}
+            if r.status_code == 404 and ("thread" in detail or "not found" in detail):
+                logger.info("Backboard thread not found (404), creating new thread and retrying")
+                user.backboard_thread_id = None
+                db.session.commit()
+                r_thread = requests.post(
+                    f"{base_url}/assistants/{assistant_id}/threads",
+                    headers=headers,
+                    json={},
+                    timeout=(10, 30),
+                )
+                if r_thread.ok:
+                    thread_id = r_thread.json().get("thread_id")
+                    if thread_id:
+                        user.backboard_thread_id = thread_id
+                        db.session.commit()
+                        r = requests.post(
+                            f"{base_url}/threads/{thread_id}/messages",
+                            headers=msg_headers,
+                            data={"stream": "false", "memory": "Auto", "web_search": "Auto"},
+                            files=[("content", (None, full_message))],
+                            timeout=(10, 60),
+                        )
+            if not r.ok:
+                logger.warning(
+                    "Backboard messages returned non-2xx: status=%s body=%s",
+                    r.status_code,
+                    (r.text or "")[:500],
+                )
+                user_hint = f"Backboard returned {r.status_code}. Check server logs for details."
+                try:
+                    err = r.json()
+                    msg = err.get("error") or err.get("message") or err.get("detail")
+                    if isinstance(msg, str) and msg:
+                        user_hint = f"Backboard returned {r.status_code}: {(msg[:100])}."
+                except Exception:
+                    pass
+                return {"text": user_hint, "action": None}
         out = r.json()
         content = out.get("content") or out.get("text") or out.get("response")
         return {"text": content or "No response.", "action": out.get("action")}
