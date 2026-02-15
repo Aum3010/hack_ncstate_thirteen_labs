@@ -19,6 +19,7 @@ export default function Layout({ user, onLogout }) {
     { to: '/bills', label: 'Bill Payments' },
     { to: '/calendar', label: 'Calendar' },
     { to: '/risk', label: 'Risk' },
+     { to: '/simulator', label: 'What-If Simulator' },
   ]
 
   return (
