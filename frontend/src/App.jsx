@@ -50,7 +50,7 @@ export default function App() {
           <Route path="calendar" element={needsProfile ? <Navigate to="/profile" replace /> : <Calendar />} />
           <Route path="money" element={<Navigate to="/" replace />} />
           <Route path="risk" element={<Navigate to="/portfolio" replace />} />
-          <Route path="experiences" element={needsProfile ? <Navigate to="/profile" replace /> : <Experiences />} />
+          <Route path="experiences" element={<Experiences />} />
           <Route path="portfolio" element={needsProfile ? <Navigate to="/profile" replace /> : <Portfolio />} />
         </Route>
         <Route path="*" element={<Navigate to={user ? (needsOnboarding ? '/onboarding' : '/') : '/login'} />} />
