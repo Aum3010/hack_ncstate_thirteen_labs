@@ -1,13 +1,14 @@
-"""ElevenLabs API service — TTS and STT only.
+"""ElevenLabs API service -- TTS and STT only. Zero storage.
 
+All audio is streamed directly from the API. Nothing touches disk.
 Uses ElevenLabs Free Tier compatible settings (mp3_44100_128).
 """
 
 import io
-import hashlib
 import os
 import threading
 import time
+from typing import Generator
 
 from elevenlabs import ElevenLabs
 
@@ -17,11 +18,7 @@ _semaphore = threading.Semaphore(3)
 MAX_RETRIES = 3
 RETRY_DELAY = 0.6
 
-# File-based TTS cache to avoid redundant API calls
-_CACHE_DIR = os.path.join(os.path.dirname(__file__), "..", "cache", "tts_cache")
-os.makedirs(_CACHE_DIR, exist_ok=True)
-
-# Default voice — George (free tier compatible)
+# Default voice -- George (free tier compatible)
 DEFAULT_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"
 
 
@@ -39,23 +36,23 @@ def _is_retryable(exc: Exception) -> bool:
     return "429" in msg or "timeout" in msg or "connection" in msg
 
 
-def generate_speech(text: str, voice_id: str = None) -> bytes:
-    """Convert text to speech via ElevenLabs TTS.
+def stream_speech(text: str, voice_id: str = None) -> Generator[bytes, None, None]:
+    """Stream TTS audio chunks from ElevenLabs. Zero disk storage.
 
-    Returns raw MP3 bytes (mp3_44100_128).
-    Results are cached on disk keyed by text hash.
+    Yields MP3 chunks as they arrive from the API.
+    The caller is responsible for forwarding chunks to the client.
+
+    Args:
+        text: The text to convert to speech.
+        voice_id: ElevenLabs voice ID (default: George).
+
+    Yields:
+        Raw MP3 byte chunks.
     """
     if not text or not text.strip():
         raise ValueError("text must not be empty")
 
     voice = voice_id or DEFAULT_VOICE_ID
-
-    # Check cache first
-    cache_key = hashlib.sha256(f"{voice}:{text}".encode("utf-8")).hexdigest()
-    cache_path = os.path.join(_CACHE_DIR, f"{cache_key}.mp3")
-    if os.path.exists(cache_path):
-        with open(cache_path, "rb") as f:
-            return f.read()
 
     _semaphore.acquire()
     try:
@@ -69,12 +66,10 @@ def generate_speech(text: str, voice_id: str = None) -> bytes:
                     model_id="eleven_flash_v2_5",
                     output_format="mp3_44100_128",
                 )
-                audio = b"".join(chunk for chunk in response)
-
-                # Persist to cache
-                with open(cache_path, "wb") as f:
-                    f.write(audio)
-                return audio
+                # Yield chunks directly -- no buffering, no disk
+                for chunk in response:
+                    yield chunk
+                return
 
             except Exception as e:
                 last_exc = e
@@ -87,11 +82,21 @@ def generate_speech(text: str, voice_id: str = None) -> bytes:
         _semaphore.release()
 
 
+def generate_speech(text: str, voice_id: str = None) -> bytes:
+    """Convert text to speech via ElevenLabs TTS. Returns complete MP3 bytes.
+
+    Convenience wrapper around stream_speech() for cases where you need
+    the full audio buffer (e.g., STT roundtrip, format conversion).
+    Nothing is written to disk.
+    """
+    return b"".join(stream_speech(text, voice_id=voice_id))
+
+
 def transcribe_audio(audio_bytes: bytes, language: str = "en") -> str:
     """Transcribe audio bytes via ElevenLabs STT (scribe_v2).
 
-    Accepts raw audio bytes (WAV, MP3, etc.).
-    Returns the transcribed text string.
+    Accepts raw audio bytes (WAV, MP3, webm, etc.).
+    Returns the transcribed text string. Nothing is written to disk.
     """
     if not audio_bytes:
         raise ValueError("audio_bytes must not be empty")

@@ -1,93 +1,74 @@
-"""Audio service — recording, MP3 decoding, playback.
+"""Audio service -- in-memory audio processing via pydub + FFmpeg.
 
-No ElevenLabs API logic. No Flask.
-Uses sounddevice for recording/playback, pydub for MP3 decoding.
-Designed for Windows compatibility.
+Zero storage. No files are written to disk.
+No sound card, no microphone, no GUI required.
+Works inside Docker containers (python:3.11-slim + ffmpeg).
 """
 
 import io
-import os
 
-import numpy as np
-import sounddevice as sd
-import soundfile as sf
 from pydub import AudioSegment
 
-# Recording defaults
-DEFAULT_SAMPLE_RATE = 44100
-DEFAULT_CHANNELS = 1
 
-
-def record_from_mic(duration: int = None, sample_rate: int = DEFAULT_SAMPLE_RATE) -> bytes:
-    """Record audio from the default microphone.
+def convert_audio(audio_bytes: bytes, source_format: str = "mp3", target_format: str = "wav") -> bytes:
+    """Convert audio bytes between formats in memory using pydub/FFmpeg.
 
     Args:
-        duration: Recording length in seconds. If None, records for 5 seconds.
-        sample_rate: Sample rate in Hz.
+        audio_bytes: Raw audio data.
+        source_format: Input format (mp3, wav, ogg, webm, etc.).
+        target_format: Output format.
 
     Returns:
-        Raw WAV bytes suitable for passing to transcribe_audio().
+        Converted audio bytes.
     """
-    duration = duration or 5
+    if not audio_bytes:
+        raise ValueError("audio_bytes must not be empty")
 
-    recording = sd.rec(
-        int(duration * sample_rate),
-        samplerate=sample_rate,
-        channels=DEFAULT_CHANNELS,
-        dtype="int16",
-    )
-    sd.wait()  # Block until recording is finished
-
-    # Encode as WAV in memory
+    segment = AudioSegment.from_file(io.BytesIO(audio_bytes), format=source_format)
     buf = io.BytesIO()
-    sf.write(buf, recording, sample_rate, format="WAV", subtype="PCM_16")
+    segment.export(buf, format=target_format)
     return buf.getvalue()
 
 
-def play_mp3_bytes(audio_bytes: bytes) -> None:
-    """Decode MP3 bytes and play through the default audio output.
-
-    Uses pydub to decode MP3 → PCM, then sounddevice for playback.
-    Blocks until playback is complete.
-    """
-    if not audio_bytes:
-        raise ValueError("audio_bytes must not be empty")
-
-    # Decode MP3 → raw PCM via pydub
-    segment = AudioSegment.from_mp3(io.BytesIO(audio_bytes))
-
-    # Convert to numpy array for sounddevice
-    samples = np.array(segment.get_array_of_samples(), dtype=np.float32)
-
-    # Normalize to [-1.0, 1.0]
-    max_val = float(2 ** (segment.sample_width * 8 - 1))
-    samples = samples / max_val
-
-    # Handle stereo: reshape to (n_samples, n_channels)
-    if segment.channels > 1:
-        samples = samples.reshape(-1, segment.channels)
-
-    sd.play(samples, samplerate=segment.frame_rate)
-    sd.wait()
-
-
-def save_audio_file(audio_bytes: bytes, path: str) -> str:
-    """Save raw audio bytes to a file on disk.
+def get_audio_duration(audio_bytes: bytes, format: str = "mp3") -> float:
+    """Get the duration of an audio buffer in seconds.
 
     Args:
-        audio_bytes: The audio data to save.
-        path: Destination file path (e.g. "output.mp3").
+        audio_bytes: Raw audio data.
+        format: Audio format (mp3, wav, etc.).
 
     Returns:
-        The absolute path of the saved file.
+        Duration in seconds.
     """
     if not audio_bytes:
         raise ValueError("audio_bytes must not be empty")
 
-    abs_path = os.path.abspath(path)
-    os.makedirs(os.path.dirname(abs_path) or ".", exist_ok=True)
+    segment = AudioSegment.from_file(io.BytesIO(audio_bytes), format=format)
+    return segment.duration_seconds
 
-    with open(abs_path, "wb") as f:
-        f.write(audio_bytes)
 
-    return abs_path
+def normalize_audio_for_stt(audio_bytes: bytes, source_format: str = "webm") -> bytes:
+    """Convert browser-recorded audio (typically webm/ogg) to WAV for STT.
+
+    Browsers record via MediaRecorder as webm/opus or ogg/opus.
+    ElevenLabs STT accepts these directly, but this function is available
+    if you need to normalize to WAV first.
+
+    Args:
+        audio_bytes: Raw audio from the browser.
+        source_format: Input format (webm, ogg, mp3, etc.).
+
+    Returns:
+        WAV bytes (mono, 16kHz, PCM 16-bit) optimized for speech recognition.
+    """
+    if not audio_bytes:
+        raise ValueError("audio_bytes must not be empty")
+
+    segment = AudioSegment.from_file(io.BytesIO(audio_bytes), format=source_format)
+
+    # Normalize for STT: mono, 16kHz, 16-bit
+    segment = segment.set_channels(1).set_frame_rate(16000).set_sample_width(2)
+
+    buf = io.BytesIO()
+    segment.export(buf, format="wav")
+    return buf.getvalue()

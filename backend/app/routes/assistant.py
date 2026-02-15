@@ -1,10 +1,8 @@
-import io
 import os
 
-from flask import Blueprint, request, jsonify, send_file, make_response
+from flask import Blueprint, request, jsonify, Response, stream_with_context
 from app.routes.auth import get_current_user_id
-from app.services.eleven_service import generate_speech, transcribe_audio
-from app.services.audio_service import record_from_mic
+from app.services.eleven_service import stream_speech, transcribe_audio
 
 assistant_bp = Blueprint("assistant", __name__)
 
@@ -45,9 +43,12 @@ def chat():
 
 @assistant_bp.route("/tts", methods=["POST"])
 def tts():
-    """POST /tts — Convert text to speech, returns audio/mpeg stream.
+    """POST /tts -- Stream text-to-speech audio directly from ElevenLabs.
 
     Body JSON: {"text": "...", "voice_id": "..." (optional)}
+
+    Returns a streaming audio/mpeg response. Chunks flow directly from
+    ElevenLabs API to the client browser with zero disk storage.
     """
     uid = get_current_user_id()
     if not uid:
@@ -61,14 +62,19 @@ def tts():
     voice_id = data.get("voice_id")
 
     try:
-        audio = generate_speech(text, voice_id=voice_id)
-        response = make_response(
-            send_file(io.BytesIO(audio), mimetype="audio/mpeg")
+        # Validate inputs before starting the stream
+        # (stream_speech raises ValueError for empty text)
+        audio_stream = stream_speech(text, voice_id=voice_id)
+
+        return Response(
+            stream_with_context(audio_stream),
+            mimetype="audio/mpeg",
+            headers={
+                "Content-Disposition": "inline",
+                "Cache-Control": "no-cache",
+                "Transfer-Encoding": "chunked",
+            },
         )
-        response.headers["Content-Type"] = "audio/mpeg"
-        response.headers["Content-Disposition"] = "inline"
-        response.headers["Cache-Control"] = "no-cache"
-        return response
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
     except Exception:
@@ -77,10 +83,15 @@ def tts():
 
 @assistant_bp.route("/stt", methods=["POST"])
 def stt():
-    """POST /stt — Transcribe uploaded audio file to text.
+    """POST /stt -- Transcribe uploaded audio file to text.
 
     Expects multipart/form-data with an 'audio' file field.
     Optional form field 'language' (default: "en").
+
+    The frontend records audio via MediaRecorder (browser) and uploads it here.
+    ElevenLabs STT accepts mp3, wav, webm, ogg, and other common formats.
+    Audio bytes are read into memory, sent to the API, and discarded. Nothing
+    is written to disk.
     """
     uid = get_current_user_id()
     if not uid:
@@ -99,38 +110,3 @@ def stt():
         return jsonify({"error": str(e)}), 400
     except Exception:
         return jsonify({"error": "Voice service unavailable"}), 503
-
-
-@assistant_bp.route("/record-stt", methods=["POST"])
-def record_stt():
-    """POST /record-stt — Record from server microphone and transcribe.
-
-    Body JSON: {"duration": 5 (optional), "language": "en" (optional)}
-
-    NOTE: This endpoint records from the SERVER's microphone.
-    Only useful when the Flask server runs on the same machine as the user
-    (e.g. local development). For production, use /stt with client-side recording.
-    """
-    uid = get_current_user_id()
-    if not uid:
-        return jsonify({"error": "Not authenticated"}), 401
-
-    data = request.get_json() or {}
-    duration = data.get("duration", 5)
-    language = data.get("language", "en")
-
-    try:
-        duration = int(duration)
-        if duration < 1 or duration > 30:
-            return jsonify({"error": "duration must be between 1 and 30 seconds"}), 400
-    except (TypeError, ValueError):
-        return jsonify({"error": "duration must be an integer"}), 400
-
-    try:
-        wav_bytes = record_from_mic(duration=duration)
-        transcript = transcribe_audio(wav_bytes, language=language)
-        return jsonify({"text": transcript})
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 400
-    except Exception:
-        return jsonify({"error": "Recording or transcription failed"}), 503

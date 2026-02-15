@@ -1,8 +1,10 @@
-# Voice API — Developer Reference
+# Voice API -- Developer Reference
 
 Base URL: `/api/assistant`
 
 All endpoints require authentication (session cookie).
+
+Runs headless inside Docker. Zero disk storage -- all audio is streamed.
 
 ---
 
@@ -10,18 +12,28 @@ All endpoints require authentication (session cookie).
 
 ### POST `/api/assistant/tts`
 
-Convert text to speech. Returns raw audio stream.
+Stream text-to-speech audio directly from ElevenLabs to the browser.
 
-**Request** — `application/json`
+**Request** -- `application/json`
 
 ```json
 {
   "text": "Hello world",
-  "voice_id": "JBFqnCBsd6RMkjVDRZzb"  // optional, defaults to George
+  "voice_id": "JBFqnCBsd6RMkjVDRZzb"
 }
 ```
 
-**Response** — `audio/mpeg` (MP3 binary stream)
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `text` | string | yes | Text to convert to speech |
+| `voice_id` | string | no | ElevenLabs voice ID (default: George) |
+
+**Response** -- `audio/mpeg` (chunked MP3 stream)
+
+```
+Content-Type: audio/mpeg
+Transfer-Encoding: chunked
+```
 
 **Errors**
 
@@ -41,20 +53,35 @@ curl -X POST http://localhost:5000/api/assistant/tts \
   --output speech.mp3
 ```
 
+**JavaScript example**
+
+```javascript
+const res = await fetch("/api/assistant/tts", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ text: "Hello world" })
+});
+const blob = await res.blob();
+const audio = new Audio(URL.createObjectURL(blob));
+audio.play();
+```
+
 ---
 
 ### POST `/api/assistant/stt`
 
 Transcribe an uploaded audio file to text.
 
-**Request** — `multipart/form-data`
+The frontend should record audio via the browser's `MediaRecorder` API and upload it here. ElevenLabs STT accepts mp3, wav, webm, ogg, and other common formats directly.
+
+**Request** -- `multipart/form-data`
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `audio` | file | yes | Audio file (WAV, MP3, etc.) |
+| `audio` | file | yes | Audio file (WAV, MP3, webm, ogg, etc.) |
 | `language` | string | no | Language code, default `"en"` |
 
-**Response** — `application/json`
+**Response** -- `application/json`
 
 ```json
 {
@@ -79,44 +106,26 @@ curl -X POST http://localhost:5000/api/assistant/stt \
   -F "language=en"
 ```
 
----
+**JavaScript example (browser recording)**
 
-### POST `/api/assistant/record-stt`
+```javascript
+const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+const recorder = new MediaRecorder(stream);
+const chunks = [];
 
-Record from the server's microphone and transcribe. Only works when the server runs locally on the same machine as the user.
+recorder.ondataavailable = (e) => chunks.push(e.data);
+recorder.onstop = async () => {
+  const blob = new Blob(chunks, { type: "audio/webm" });
+  const form = new FormData();
+  form.append("audio", blob, "recording.webm");
 
-**Request** — `application/json`
+  const res = await fetch("/api/assistant/stt", { method: "POST", body: form });
+  const { text } = await res.json();
+  console.log("Transcript:", text);
+};
 
-```json
-{
-  "duration": 5,       // optional, 1-30 seconds, default 5
-  "language": "en"     // optional, default "en"
-}
-```
-
-**Response** — `application/json`
-
-```json
-{
-  "text": "The transcribed text appears here"
-}
-```
-
-**Errors**
-
-| Status | Body |
-|--------|------|
-| 400 | `{"error": "duration must be between 1 and 30 seconds"}` |
-| 401 | `{"error": "Not authenticated"}` |
-| 503 | `{"error": "Recording or transcription failed"}` |
-
-**curl example**
-
-```bash
-curl -X POST http://localhost:5000/api/assistant/record-stt \
-  -H "Content-Type: application/json" \
-  -b cookies.txt \
-  -d '{"duration": 5}'
+recorder.start();
+setTimeout(() => recorder.stop(), 5000);
 ```
 
 ---
@@ -125,110 +134,72 @@ curl -X POST http://localhost:5000/api/assistant/record-stt \
 
 ### `eleven_service.py`
 
-Located at `app/services/eleven_service.py`. Handles ElevenLabs API calls only.
+Located at `app/services/eleven_service.py`. ElevenLabs API only. Zero storage.
 
 ```python
-from app.services.eleven_service import generate_speech, transcribe_audio
+from app.services.eleven_service import stream_speech, generate_speech, transcribe_audio
+```
+
+#### `stream_speech(text, voice_id=None) -> Generator[bytes]`
+
+Yields MP3 chunks directly from the ElevenLabs API. Used by the Flask route for streaming responses.
+
+```python
+for chunk in stream_speech("Hello world"):
+    # each chunk is a bytes object, part of the MP3 stream
+    pass
 ```
 
 #### `generate_speech(text, voice_id=None) -> bytes`
 
-Converts text to MP3 audio bytes via ElevenLabs TTS.
-
-- Uses model `eleven_flash_v2_5` with `mp3_44100_128` output (Free Tier safe)
-- Results are cached to disk (`app/cache/tts_cache/`) keyed by SHA-256 of `voice_id:text`
-- Retries up to 3 times on 429 / timeout / connection errors
-- Concurrent calls are limited to 3 via semaphore
+Convenience wrapper that collects all chunks into a single bytes object. Use when you need the complete audio buffer in memory (e.g., for format conversion).
 
 ```python
 mp3_bytes = generate_speech("Hello world")
-mp3_bytes = generate_speech("Hola", voice_id="custom_voice_id")
 ```
 
 #### `transcribe_audio(audio_bytes, language="en") -> str`
 
 Transcribes audio bytes to text via ElevenLabs STT (scribe_v2).
 
-- Accepts WAV, MP3, or any format ElevenLabs supports
-- Retries up to 3 times on transient errors
-
 ```python
 text = transcribe_audio(wav_bytes)
-text = transcribe_audio(mp3_bytes, language="es")
+text = transcribe_audio(webm_bytes, language="es")
 ```
 
 ---
 
 ### `audio_service.py`
 
-Located at `app/services/audio_service.py`. Handles local audio I/O only.
+Located at `app/services/audio_service.py`. In-memory audio processing via pydub + FFmpeg. Zero storage.
 
 ```python
-from app.services.audio_service import record_from_mic, play_mp3_bytes, save_audio_file
+from app.services.audio_service import convert_audio, get_audio_duration, normalize_audio_for_stt
 ```
 
-#### `record_from_mic(duration=5, sample_rate=44100) -> bytes`
+#### `convert_audio(audio_bytes, source_format="mp3", target_format="wav") -> bytes`
 
-Records from the default microphone using `sounddevice`. Blocks until done.
-
-- Returns WAV bytes (PCM 16-bit, mono)
-- Output can be passed directly to `transcribe_audio()`
+Converts audio between formats in memory.
 
 ```python
-wav_bytes = record_from_mic()
-wav_bytes = record_from_mic(duration=10)
+wav_bytes = convert_audio(mp3_bytes, source_format="mp3", target_format="wav")
 ```
 
-#### `play_mp3_bytes(audio_bytes) -> None`
+#### `get_audio_duration(audio_bytes, format="mp3") -> float`
 
-Decodes MP3 via `pydub` and plays through the default audio output via `sounddevice`. Blocks until playback completes.
+Returns audio duration in seconds.
 
 ```python
-mp3_bytes = generate_speech("Hello")
-play_mp3_bytes(mp3_bytes)
+duration = get_audio_duration(mp3_bytes)  # e.g. 3.45
 ```
 
-#### `save_audio_file(audio_bytes, path) -> str`
+#### `normalize_audio_for_stt(audio_bytes, source_format="webm") -> bytes`
 
-Writes audio bytes to disk. Creates parent directories if needed. Returns the absolute path.
-
-```python
-abs_path = save_audio_file(mp3_bytes, "output/speech.mp3")
-```
-
----
-
-## Common Workflows
-
-### Text to speech with playback
+Converts browser-recorded audio to mono 16kHz WAV optimized for STT.
 
 ```python
-from app.services.eleven_service import generate_speech
-from app.services.audio_service import play_mp3_bytes
-
-mp3 = generate_speech("Hello from ElevenLabs")
-play_mp3_bytes(mp3)
-```
-
-### Record and transcribe
-
-```python
-from app.services.audio_service import record_from_mic
-from app.services.eleven_service import transcribe_audio
-
-wav = record_from_mic(duration=5)
+wav = normalize_audio_for_stt(webm_bytes, source_format="webm")
 text = transcribe_audio(wav)
-print(text)
-```
-
-### Save TTS output to file
-
-```python
-from app.services.eleven_service import generate_speech
-from app.services.audio_service import save_audio_file
-
-mp3 = generate_speech("Save this to disk")
-path = save_audio_file(mp3, "output/saved.mp3")
 ```
 
 ---
@@ -241,15 +212,17 @@ Required in `.env`:
 ELEVENLABS_API_KEY=your_key_here
 ```
 
-Required system dependencies (Windows):
+### Docker (production)
+
+The Dockerfile installs `ffmpeg` and `libsndfile1` automatically. No additional setup.
+
+### Local development (Windows)
 
 - Python 3.10+
-- FFmpeg (required by pydub for MP3 decoding) — add to PATH
-
-Python packages:
+- FFmpeg installed and on PATH
 
 ```
-pip install elevenlabs sounddevice soundfile pydub numpy
+pip install -r requirements.txt
 ```
 
 ---
@@ -257,13 +230,18 @@ pip install elevenlabs sounddevice soundfile pydub numpy
 ## Architecture
 
 ```
+Browser (MediaRecorder / Audio element)
+    |
+    v
 Flask Route (assistant.py)
     |
-    +-- eleven_service.py    ElevenLabs API only (TTS + STT)
-    |       no audio, no Flask, no globals
+    +-- eleven_service.py    ElevenLabs API only (TTS streaming + STT)
+    |       yields chunks, no buffering, no disk, no globals
     |
-    +-- audio_service.py     Local audio I/O only (mic + playback + save)
-            no API calls, no Flask, no globals
+    +-- audio_service.py     In-memory format conversion (pydub + FFmpeg)
+            no disk I/O, no sound card, no mic
 ```
+
+**Zero storage. No cache. No temp files. No generated_audio/.**
 
 Each service is independently importable and testable. No circular dependencies.
