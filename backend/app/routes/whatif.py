@@ -62,6 +62,7 @@ def _run_monte_carlo(
     liquidity_months = []
     payoff_samples = []
     recovery_samples = []
+    max_drawdowns = []
 
     for _ in range(simulations):
         invest_balance = 0.0
@@ -70,6 +71,8 @@ def _run_monte_carlo(
         payoff_month = None
         dipped_below = False
         recovery_month = None
+        peak_net_worth = 0.0
+        max_drawdown = 0.0
 
         for _m in range(1, months + 1):
             # Random monthly return draw
@@ -106,12 +109,22 @@ def _run_monte_carlo(
                 # first time recovering to 6+ months after falling below
                 recovery_month = _m
 
+            # Track max drawdown based on net worth path
+            current_net_worth = invest_balance - loan_balance
+            if current_net_worth > peak_net_worth:
+                peak_net_worth = current_net_worth
+            elif peak_net_worth > 0:
+                dd = (peak_net_worth - current_net_worth) / peak_net_worth
+                if dd > max_drawdown:
+                    max_drawdown = dd
+
         net_worth_end = invest_balance - loan_balance
         net_worth_ends.append(net_worth_end)
         # Liquidity buffer in months at horizon: assume average monthly expenses of 2k
         liquidity_months.append(liquidity_buffer)
         payoff_samples.append(payoff_month)
         recovery_samples.append(recovery_month)
+        max_drawdowns.append(max_drawdown)
 
     pct = _percentiles(net_worth_ends, [0.1, 0.5, 0.9])
 
@@ -130,6 +143,7 @@ def _run_monte_carlo(
     )
     rec_months = [m for m in recovery_samples if m is not None]
     recovery_years = (sum(rec_months) / len(rec_months)) / 12.0 if rec_months else 0.0
+    expected_max_drawdown = sum(max_drawdowns) / len(max_drawdowns) if max_drawdowns else 0.0
 
     # Build a simple histogram for a distribution curve
     buckets = 20
@@ -165,6 +179,7 @@ def _run_monte_carlo(
         "debt_freedom_years": debt_freedom_years,
         "survival_prob": survival_prob,
         "recovery_years": recovery_years,
+        "expected_max_drawdown": expected_max_drawdown,
         "assumptions": {
             "annual_return": annual_return,
             "annual_vol": annual_vol,

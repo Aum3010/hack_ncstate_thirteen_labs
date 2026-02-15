@@ -269,8 +269,6 @@ export default function WhatIfSimulator() {
   }, [monthlyInvestment, extraLoanPayment, horizonYears, regime])
 
   const medianOutcome = scenarioPct?.p50 ?? null
-  const worstOutcome = scenarioPct?.p10 ?? null
-  const bestOutcome = scenarioPct?.p90 ?? null
   const survivalProbPctRaw = scenarioSurvivalProb != null
     ? Math.round(scenarioSurvivalProb * 100)
     : null
@@ -300,6 +298,15 @@ export default function WhatIfSimulator() {
 
   const baselineDelta = scenarioComparisons?.baseline
   const bullDelta = scenarioComparisons?.bull
+  const expectedMaxDrawdown = typeof scenarioPct !== 'undefined' && typeof scenarioPct?.p10 === 'number'
+    ? (() => {
+        // Rough proxy: drop from median to P10 relative to median
+        if (!medianOutcome || medianOutcome === 0) return 0.3
+        const dd = (medianOutcome - scenarioPct.p10) / Math.abs(medianOutcome)
+        if (!Number.isFinite(dd)) return 0.3
+        return Math.max(0, Math.min(dd, 0.95))
+      })()
+    : 0.3
 
 
   return (
@@ -523,9 +530,12 @@ export default function WhatIfSimulator() {
             </div>
 
             <div className="sim-kpi">
-              <div className="sim-kpi-label">Worst 10% Outcome (P10)</div>
-              <div className="sim-kpi-value">
-                {worstOutcome != null ? formatCurrency(worstOutcome) : '—'}
+              <div className="sim-kpi-label">Expected Max Drawdown</div>
+              <div className="sim-kpi-value neon-pink">
+                {`-${(expectedMaxDrawdown * 100).toFixed(0)}%`}
+              </div>
+              <div className="sim-kpi-sub text-muted">
+                Largest projected portfolio drop during this horizon, based on the distribution of outcomes.
               </div>
             </div>
 
