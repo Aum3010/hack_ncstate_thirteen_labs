@@ -1,5 +1,29 @@
 .calendar-page {
   max-width: 800px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+/* Keep header content within bounds and spaced */
+.calendar-page .page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.calendar-page .page-title {
+  margin: 0;
+}
+.calendar-page .page-header .btn {
+  flex-shrink: 0;
+}
+@media (max-width: 480px) {
+  .calendar-page {
+    padding: 0 0.75rem;
+  }
+  .calendar-page .page-header {
+    gap: 0.75rem;
+  }
 }
 
 .calendar-controls {
@@ -64,6 +88,16 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.day-bill.paid {
+  color: var(--text-muted);
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+.day-bill.due:not(.paid),
+.day-bill.overdue:not(.paid) {
+  color: var(--neon-pink);
+  font-weight: 600;
 }
 .day-bill.more {
   color: var(--text-muted);
@@ -134,6 +168,9 @@
 .modal {
   width: 90%;
   max-width: 720px;
+  max-height: 80vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 8px;

@@ -55,6 +55,106 @@
   color: var(--text-muted);
 }
 
+.notif-bell-wrap {
+  position: relative;
+}
+.notif-bell {
+  position: relative;
+}
+.notif-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: var(--neon-pink);
+  color: var(--bg-dark);
+  border-radius: 999px;
+  font-size: 0.7rem;
+  padding: 0 6px;
+}
+.notif-dropdown {
+
+/* Emphasize due/overdue items in red */
+.notif-item.due {
+  border-left: 3px solid var(--neon-pink);
+  padding-left: 9px;
+  border-radius: 4px;
+}
+.notif-item.due .notif-name {
+  color: var(--neon-pink);
+}
+  position: absolute;
+  right: 0;
+  top: 120%;
+  width: 320px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem;
+  z-index: 1000;
+}
+.notif-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  color: var(--neon-blue);
+}
+.notif-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.notif-item:last-child { border-bottom: none; }
+.notif-item.highlight {
+  background: rgba(0, 212, 255, 0.10);
+  outline: 2px solid var(--neon-blue);
+  border-radius: 6px;
+}
+.notif-main { display: flex; align-items: center; justify-content: space-between; }
+.notif-name { color: var(--text); font-weight: 600; }
+.notif-amount { color: var(--neon-green); font-family: var(--font-mono); }
+.notif-meta { display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); }
+.notif-days.upcoming { color: var(--neon-blue); }
+.notif-days.overdue { color: var(--neon-pink); }
+
+/* Tooltip toast shown near the bell after login */
+.notif-tooltip {
+  position: absolute;
+  top: 120%;
+  right: 0;
+  background: var(--bg-card);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 1100;
+}
+.notif-tooltip::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  right: 24px;
+  width: 10px;
+  height: 10px;
+  background: var(--bg-card);
+  border-right: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+  transform: rotate(45deg);
+}
+.notif-tooltip-main {
+  font-size: 0.9rem;
+}
+.notif-tooltip-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .layout-main {
   flex: 1;
   padding: 1.5rem;
