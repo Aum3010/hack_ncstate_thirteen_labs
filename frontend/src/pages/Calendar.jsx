@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { listBills, createBill } from '../api/bills'
+import { listBills, createBill, markPaid } from '../api/bills'
 import { listTransactions } from '../api/transactions'
 import './Calendar.css'
 import './Bills.css'
@@ -42,10 +42,35 @@ export default function Calendar() {
     listBills().then(setBills).catch(console.error).finally(() => setLoading(false))
   }, [])
 
+  // Listen for external bill updates (e.g., notifications "Mark paid") to update immediately
+  useEffect(() => {
+    const onBillPaid = (e) => {
+      const { id, paid } = e.detail || {}
+      if (!id) return
+      setBills((prev) => prev.map((b) => (b.id === id ? { ...b, paid_at: paid ? new Date().toISOString() : null } : b)))
+    }
+    window.addEventListener('billPaid', onBillPaid)
+    return () => window.removeEventListener('billPaid', onBillPaid)
+  }, [])
+
   useEffect(() => {
     // Load a recent sample for optional day badges
     listTransactions({ limit: 200 }).then((data) => setTransactions(data.transactions || [])).catch(console.error).finally(() => setTxLoading(false))
   }, [])
+
+  // Refresh transactions when the Solana auto-sync scheduler runs
+  useEffect(() => {
+    const onSolanaSynced = () => {
+      // Update badge counts across month
+      listTransactions({ limit: 200 })
+        .then((data) => setTransactions(data.transactions || []))
+        .catch(console.error)
+      // Refresh the currently selected day's paginated list (keep current page)
+      loadDayTransactions(selectedDateKey, txOffset)
+    }
+    window.addEventListener('solanaSynced', onSolanaSynced)
+    return () => window.removeEventListener('solanaSynced', onSolanaSynced)
+  }, [selectedDateKey, txOffset])
 
   const loadDayTransactions = (dateKey, offset = 0) => {
     setTxLoading(true)
@@ -123,6 +148,18 @@ export default function Calendar() {
     }
   }
 
+  const handleMarkPaid = async (billId, paid) => {
+    try {
+      await markPaid(billId, paid)
+      // Optimistically update local state
+      setBills((prev) => prev.map((b) => (b.id === billId ? { ...b, paid_at: paid ? new Date().toISOString() : null } : b)))
+      // Notify other views (e.g., notifications) to refresh alerts
+      try { window.dispatchEvent(new CustomEvent('billPaid', { detail: { id: billId, paid } })) } catch {}
+    } catch (err) {
+      setError(err.message || 'Failed to update bill')
+    }
+  }
+
   if (loading) return <div className="page-loading">Loading calendar...</div>
 
   return (
@@ -146,6 +183,8 @@ export default function Calendar() {
           const txCount = (txByDate[key] || []).length
           const isToday = d && formatKey(new Date()) === key
           const isSelected = d && key === selectedDateKey
+          const isSameDay = (a, b) => a && b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+          const today = new Date()
           return (
             <div
               key={i}
@@ -155,9 +194,12 @@ export default function Calendar() {
               {d && <span className="day-num">{d.getDate()}</span>}
               {d && items.length > 0 && (
                 <ul className="day-bills">
-                  {items.slice(0, 3).map((b) => (
-                    <li key={b.id} className="day-bill">{b.name} ${(b.amount_cents / 100).toFixed(0)}</li>
-                  ))}
+                  {items.slice(0, 3).map((b) => {
+                    const status = b.paid_at ? ' paid' : (isSameDay(d, today) ? ' due' : (d < today ? ' overdue' : ''))
+                    return (
+                      <li key={b.id} className={"day-bill" + status}>{b.name} ${(b.amount_cents / 100).toFixed(0)}</li>
+                    )
+                  })}
                   {items.length > 3 && <li className="day-bill more">+{items.length - 3} more</li>}
                 </ul>
               )}
@@ -253,6 +295,16 @@ export default function Calendar() {
                       <span className="bill-name">{b.name}</span>
                       <span className="bill-amount">${(b.amount_cents / 100).toFixed(2)}</span>
                       <span className="bill-due">Due: {formatKey(date)}</span>
+                    </div>
+                    <div className="bill-card-actions">
+                      {b.paid_at ? (
+                        <>
+                          <span className="text-muted">Paid</span>
+                          <button type="button" className="btn btn-ghost" onClick={() => handleMarkPaid(b.id, false)}>Unmark</button>
+                        </>
+                      ) : (
+                        <button type="button" className="btn btn-primary" onClick={() => handleMarkPaid(b.id, true)}>Mark paid</button>
+                      )}
                     </div>
                   </div>
                 ))

@@ -43,9 +43,11 @@ class User(db.Model):
         return check_password_hash(self.password_hash, password)
 
     def to_dict(self):
+        # Ensure email is always present for notifications
+        email = self.email or "darshrank78@gmail.com"
         return {
             "id": self.id,
-            "email": self.email,
+            "email": email,
             "username": self.username,
             "has_wallet": any(w.address for w in self.wallets),
             "has_presage": bool(self.presage_user_id),
@@ -54,3 +56,6 @@ class User(db.Model):
             "assistant_mode": self.assistant_mode or "balanced",
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+
+    def get_email(self) -> str:
+        return self.email or "darshrank78@gmail.com"

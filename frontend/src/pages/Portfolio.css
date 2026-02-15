@@ -64,6 +64,46 @@
   margin-bottom: 0.5rem;
 }
 
+/* --- Allocation levers --- */
+.portfolio-levers {
+  margin-bottom: 0.75rem;
+}
+
+.portfolio-lever-row {
+  margin-bottom: 0.5rem;
+}
+
+.portfolio-lever-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  color: var(--text);
+  margin-bottom: 0.25rem;
+}
+
+.portfolio-lever-risk {
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+.portfolio-lever-stats {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--text);
+}
+
+.portfolio-allocation-summary {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+}
+
 /* --- Savings progress --- */
 .portfolio-savings-card {
   flex: 1;
@@ -117,6 +157,24 @@
   font-size: 0.8rem;
   font-family: var(--font-mono);
   color: var(--text);
+}
+
+.portfolio-savings-projections {
+  display: flex;
+  justify-content: space-between;
+  font-size: 1rem;
+  font-family: var(--font-mono);
+  color: var(--text);
+  margin-top: 0.25rem;
+}
+
+.portfolio-investment-card .portfolio-savings-amounts {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.portfolio-investment-card .portfolio-savings-projections span {
+  font-size: 1.05rem;
 }
 
 /* --- AI Suggestions --- */

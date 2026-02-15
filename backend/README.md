@@ -44,6 +44,68 @@ TWELVELABS_API_KEY=
 
 The `ELEVENLABS_API_KEY` is required for voice features. Free tier works.
 
+### Email (SMTP) Configuration
+
+To enable real email delivery for reminders/notifications, set these in the root `.env` (used by `docker-compose`):
+
+```
+# SMTP basics
+SMTP_HOST=
+SMTP_PORT=
+SMTP_USER=
+SMTP_PASSWORD=
+SMTP_FROM=
+
+# TLS/SSL toggles
+SMTP_SSL=true|false       # Use port 465 when true
+SMTP_STARTTLS=true|false  # Use port 587 when true
+SMTP_TIMEOUT=20           # Optional
+```
+
+Examples:
+
+- Gmail (App Password)
+  - Prereqs: Enable 2FA on your Google account, create an App Password (Mail).
+  - Settings:
+    - `SMTP_HOST=smtp.gmail.com`
+    - `SMTP_PORT=465`
+    - `SMTP_SSL=true`
+    - `SMTP_STARTTLS=false`
+    - `SMTP_USER=your@gmail.com`
+    - `SMTP_PASSWORD=<your Gmail app password>`
+    - `SMTP_FROM=your@gmail.com`
+
+- Mailtrap Sending
+  - From Mailtrap → Sending → SMTP Credentials
+  - Settings:
+    - `SMTP_HOST=smtp.mailtrap.io`
+    - `SMTP_PORT=587`
+    - `SMTP_SSL=false`
+    - `SMTP_STARTTLS=true`
+    - `SMTP_USER=<mailtrap user>`
+    - `SMTP_PASSWORD=<mailtrap password>`
+    - `SMTP_FROM=<verified sender or any>`
+
+After updating `.env`, rebuild the backend:
+
+```bash
+docker compose up -d --build backend
+```
+
+Test the notifier API (requires `ADMIN_TOKEN` in `.env`, default `dev-admin-token`):
+
+```bash
+curl -X POST "http://localhost:5000/api/notifications/run" \
+  -H "X-Admin-Token: dev-admin-token"
+```
+
+Successful delivery logs:
+
+```
+[EMAIL:SMTP] host=... port=... ssl=... starttls=... from=... user=set
+[EMAIL:SENT] to=user@example.com subject=...
+```
+
 ---
 
 ## Project Structure
