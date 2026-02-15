@@ -206,10 +206,13 @@ export default function WhatIfSimulator() {
   const [scenarioPct, setScenarioPct] = useState(null)
   const [scenarioLiquidity, setScenarioLiquidity] = useState(null)
   const [scenarioDebtFreedomYears, setScenarioDebtFreedomYears] = useState(null)
+  const [scenarioSurvivalProb, setScenarioSurvivalProb] = useState(null)
+  const [scenarioRecoveryYears, setScenarioRecoveryYears] = useState(null)
   const [scenarioCoach, setScenarioCoach] = useState(null)
   const [scenarioLoading, setScenarioLoading] = useState(false)
   const [scenarioError, setScenarioError] = useState('')
   const [llmConfig, setLlmConfig] = useState(null)
+  const [regime, setRegime] = useState('balanced')
 
   useEffect(() => {
     let cancelled = false
@@ -237,6 +240,7 @@ export default function WhatIfSimulator() {
           monthlyInvestment,
           extraLoanPayment,
           horizonYears,
+          regime,
         })
         if (cancelled) return
         setScenarioDist(data.distribution || [])
@@ -244,6 +248,12 @@ export default function WhatIfSimulator() {
         setScenarioLiquidity(data.liquidity || null)
         setScenarioDebtFreedomYears(
           typeof data.debt_freedom_years === 'number' ? data.debt_freedom_years : null,
+        )
+        setScenarioSurvivalProb(
+          typeof data.survival_prob === 'number' ? data.survival_prob : null,
+        )
+        setScenarioRecoveryYears(
+          typeof data.recovery_years === 'number' ? data.recovery_years : null,
         )
         setScenarioCoach(data.coach || null)
       } catch (err) {
@@ -258,15 +268,16 @@ export default function WhatIfSimulator() {
       cancelled = true
       clearTimeout(timeout)
     }
-  }, [monthlyInvestment, extraLoanPayment, horizonYears])
+  }, [monthlyInvestment, extraLoanPayment, horizonYears, regime])
 
   const medianOutcome = scenarioPct?.p50 ?? null
   const worstOutcome = scenarioPct?.p10 ?? null
   const bestOutcome = scenarioPct?.p90 ?? null
-  const stressProbPct = scenarioLiquidity
-    ? Math.round((scenarioLiquidity.stress_prob || 0) * 100)
+  const survivalProbPct = scenarioSurvivalProb != null
+    ? Math.round(scenarioSurvivalProb * 100)
     : null
   const debtFreedomYears = scenarioDebtFreedomYears
+  const recoveryYears = scenarioRecoveryYears
 
 
   return (
@@ -415,10 +426,46 @@ export default function WhatIfSimulator() {
               Choose how far into the future you want this scenario to project.
             </p>
           </div>
+
+          <div className="sim-control">
+            <div className="sim-control-header">
+              <span className="sim-control-label">Market regime</span>
+            </div>
+            <div className="sim-riskchips">
+              {[
+                { key: 'bull', label: '🐂 Bull cycle' },
+                { key: 'bear', label: '🐻 Bear cycle' },
+                { key: 'high_vol', label: '🌪 High volatility year' },
+                { key: 'crypto_winter', label: '🧊 Crypto winter' },
+              ].map((r) => (
+                <button
+                  key={r.key}
+                  type="button"
+                  className={`sim-chip ${regime === r.key ? 'active' : ''}`}
+                  onClick={() => setRegime(r.key)}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+            <p className="sim-help text-muted">
+              Simulate bull, bear, high-volatility, or crypto winter regimes. Survival and recovery metrics will update.
+            </p>
+          </div>
         </section>
 
         <section className="card sim-panel-metrics">
           <h2 className="section-title">Outcome Metrics</h2>
+
+          <div className="sim-summary card-inner" style={{ marginBottom: '0.75rem' }}>
+            <h3>AI Financial Coach</h3>
+            <p className="sim-assumptions">
+              {scenarioLoading && 'Crunching possible futures...'}
+              {!scenarioLoading && scenarioError && scenarioError}
+              {!scenarioLoading && !scenarioError
+                && (scenarioCoach?.commentary || 'Move the sliders to see live, context-aware commentary.')}
+            </p>
+          </div>
 
           <div className="sim-kpis">
             <div className="sim-kpi">
@@ -443,12 +490,12 @@ export default function WhatIfSimulator() {
             </div>
 
             <div className="sim-kpi">
-              <div className="sim-kpi-label">Probability of Financial Stress</div>
+              <div className="sim-kpi-label">Survival Probability</div>
               <div className="sim-kpi-value">
-                {stressProbPct != null ? `${stressProbPct}%` : '—'}
+                {survivalProbPct != null ? `${survivalProbPct}%` : '—'}
               </div>
               <div className="sim-kpi-sub text-muted">
-                Chance that liquidity falls below 6 months by the end of the horizon.
+                Chance of keeping at least 6 months of liquidity by the end of the horizon.
               </div>
             </div>
 
@@ -458,51 +505,13 @@ export default function WhatIfSimulator() {
                 {debtFreedomYears != null ? `${debtFreedomYears.toFixed(1)} yrs` : '—'}
               </div>
             </div>
-          </div>
-
-          <div className="sim-summary card-inner">
-            <h3>AI Financial Coach</h3>
-            <p className="sim-assumptions">
-              {scenarioLoading && 'Crunching possible futures...'}
-              {!scenarioLoading && scenarioError && scenarioError}
-              {!scenarioLoading && !scenarioError
-                && (scenarioCoach?.commentary || 'Move the sliders to see live, context-aware commentary.')}
-            </p>
-          </div>
-        </section>
-      </div>
-
-      <div className="sim-main-grid">
-        <section className="card sim-panel-metrics">
-          <h2 className="section-title">Distribution of Futures</h2>
-          <p className="text-muted" style={{ marginBottom: '0.4rem' }}>
-            Each bar shows how many simulations finished near that net worth. Percentile markers highlight cautious (P10),
-            typical (P50), and strong (P90) futures.
-          </p>
-          <div style={{ height: 260 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={scenarioDist}>
-                <XAxis dataKey="net_worth" tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
-                <YAxis tickFormatter={(v) => v.toFixed(0)} />
-                <Tooltip
-                  formatter={(v, name) => (name === 'count' ? `${v} paths` : formatCurrency(Number(v)))}
-                  labelFormatter={(v) => `Net worth ≈ ${formatCurrency(Number(v))}`}
-                />
-                <Legend />
-                <Bar dataKey="count" name="Simulated paths" fill="#6366f1" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          {scenarioPct && (
-            <div className="sim-timeline-strip" style={{ marginTop: '0.75rem' }}>
-              <span className="sim-timeline-label">Percentiles:</span>
-              <span className="sim-timeline-value">P10 {formatCurrency(scenarioPct.p10 || 0)}</span>
-              <span className="sim-timeline-sep">·</span>
-              <span className="sim-timeline-value">P50 {formatCurrency(scenarioPct.p50 || 0)}</span>
-              <span className="sim-timeline-sep">·</span>
-              <span className="sim-timeline-value">P90 {formatCurrency(scenarioPct.p90 || 0)}</span>
+            <div className="sim-kpi">
+              <div className="sim-kpi-label">Recovery Time</div>
+              <div className="sim-kpi-value">
+                {recoveryYears != null ? `${recoveryYears.toFixed(1)} yrs` : '—'}
+              </div>
             </div>
-          )}
+          </div>
         </section>
       </div>
     </div>

@@ -25,11 +25,27 @@ def _percentiles(values, probs):
     return out
 
 
+def _regime_params(regime: str):
+    """Return (annual_return, annual_vol) for a given market regime."""
+    key = (regime or "").lower().strip()
+    if key in ("bull", "bull_cycle"):
+        return 0.15, 0.25
+    if key in ("bear", "bear_cycle"):
+        return -0.05, 0.35
+    if key in ("high_vol", "high_volatility"):
+        return 0.07, 0.40
+    if key in ("crypto_winter", "winter"):
+        return -0.15, 0.70
+    # balanced / default
+    return 0.07, 0.15
+
+
 def _run_monte_carlo(
     monthly_investment: float,
     extra_loan_payment: float,
     horizon_years: int,
     simulations: int = 500,
+    regime: str | None = None,
 ):
     """
     Simple Monte Carlo on top of the deterministic loan/investment structure
@@ -38,20 +54,22 @@ def _run_monte_carlo(
     months = horizon_years * 12
 
     # Annualized drift/vol for equity-like portfolio
-    annual_return = 0.07
-    annual_vol = 0.15
+    annual_return, annual_vol = _regime_params(regime or "balanced")
     monthly_drift = (1 + annual_return) ** (1 / 12) - 1
     monthly_vol = annual_vol / math.sqrt(12)
 
     net_worth_ends = []
     liquidity_months = []
     payoff_samples = []
+    recovery_samples = []
 
     for _ in range(simulations):
         invest_balance = 0.0
         loan_balance = 10_000.0  # mirrors LOAN_PRINCIPAL in frontend
         liquid_reserve = 3_000.0  # simple liquidity proxy
         payoff_month = None
+        dipped_below = False
+        recovery_month = None
 
         for _m in range(1, months + 1):
             # Random monthly return draw
@@ -76,12 +94,19 @@ def _run_monte_carlo(
 
             # Simple liquidity: treat a portion of invest_balance as liquid, minus some spending
             liquid_reserve = max(liquid_reserve * (1 + 0.01) + monthly_investment * 0.2 - 400, 0.0)
+            liquidity_buffer = liquid_reserve / 2000 if liquid_reserve > 0 else 0.0
+            if liquidity_buffer < 6.0:
+                dipped_below = True
+            elif dipped_below and recovery_month is None:
+                # first time recovering to 6+ months after falling below
+                recovery_month = _m
 
         net_worth_end = invest_balance - loan_balance
         net_worth_ends.append(net_worth_end)
-        # Liquidity buffer in months: assume average monthly expenses of 2k
-        liquidity_months.append(liquid_reserve / 2000 if liquid_reserve > 0 else 0.0)
+        # Liquidity buffer in months at horizon: assume average monthly expenses of 2k
+        liquidity_months.append(liquidity_buffer)
         payoff_samples.append(payoff_month)
+        recovery_samples.append(recovery_month)
 
     pct = _percentiles(net_worth_ends, [0.1, 0.5, 0.9])
 
@@ -92,11 +117,14 @@ def _run_monte_carlo(
         if liquidity_months
         else 0.0
     )
+    survival_prob = 1.0 - stress_prob
 
     payoff_months = [m for m in payoff_samples if m is not None]
     debt_freedom_years = (
         (sum(payoff_months) / len(payoff_months)) / 12.0 if payoff_months else float(horizon_years)
     )
+    rec_months = [m for m in recovery_samples if m is not None]
+    recovery_years = (sum(rec_months) / len(rec_months)) / 12.0 if rec_months else 0.0
 
     # Build a simple histogram for a distribution curve
     buckets = 20
@@ -130,6 +158,8 @@ def _run_monte_carlo(
             "p10_months": stress_p10,
         },
         "debt_freedom_years": debt_freedom_years,
+        "survival_prob": survival_prob,
+        "recovery_years": recovery_years,
         "assumptions": {
             "annual_return": annual_return,
             "annual_vol": annual_vol,
@@ -184,7 +214,7 @@ def _llm_coach(core: dict, monthly_investment: float, extra_loan_payment: float)
         "savings_rate_pct": savings_rate_pct,
         "liquidity_p10_months": liq["p10_months"],
         "liquidity_avg_months": liq["avg_months"],
-        "liquidity_stress_prob": liq.get("stress_prob", 0.0),
+        "liquidity_survival_prob": core.get("survival_prob", 0.0),
         "net_worth_p10": pct["p10"],
         "net_worth_p50": pct["p50"],
         "net_worth_p90": pct["p90"],
@@ -283,6 +313,8 @@ def scenario():
     except (TypeError, ValueError):
         return jsonify({"error": "Invalid input"}), 400
 
+    regime = (data.get("regime") or "balanced").lower().strip()
+
     horizon_years = max(1, min(horizon_years, 40))
     monthly_investment = max(0.0, monthly_investment)
     extra_loan_payment = max(0.0, extra_loan_payment)
@@ -292,6 +324,7 @@ def scenario():
         extra_loan_payment=extra_loan_payment,
         horizon_years=horizon_years,
         simulations=500,
+        regime=regime,
     )
     coach = _llm_coach(core, monthly_investment, extra_loan_payment)
     core["coach"] = coach
