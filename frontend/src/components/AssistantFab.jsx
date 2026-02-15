@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import './AssistantFab.css'
 
 import { API } from '../api/config'
+import { speechToText, textToSpeech, playTTSFromResponse } from '../api/assistant'
+
 const MODES = [
   { value: 'conservative', label: 'Conservative' },
   { value: 'balanced', label: 'Balanced' },
@@ -14,6 +16,10 @@ export default function AssistantFab() {
   const [reply, setReply] = useState('')
   const [loading, setLoading] = useState(false)
   const [mode, setMode] = useState('balanced')
+  const [voiceState, setVoiceState] = useState('idle') // idle | recording | processing | playing
+  const streamRef = useRef(null)
+  const recorderRef = useRef(null)
+  const chunksRef = useRef([])
 
   useEffect(() => {
     if (!open) return
@@ -24,6 +30,19 @@ export default function AssistantFab() {
       })
       .catch(() => {})
   }, [open])
+
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop())
+        streamRef.current = null
+      }
+      if (recorderRef.current && recorderRef.current.state !== 'inactive') {
+        try { recorderRef.current.stop() } catch (_) {}
+        recorderRef.current = null
+      }
+    }
+  }, [])
 
   const persistMode = (newMode) => {
     setMode(newMode)
@@ -60,6 +79,77 @@ export default function AssistantFab() {
     }
   }
 
+  const startVoice = async () => {
+    if (voiceState !== 'idle') return
+    setReply('')
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      streamRef.current = stream
+      const recorder = new MediaRecorder(stream)
+      recorderRef.current = recorder
+      chunksRef.current = []
+      recorder.ondataavailable = (e) => { if (e.data.size) chunksRef.current.push(e.data) }
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop())
+        streamRef.current = null
+        recorderRef.current = null
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
+        setVoiceState('processing')
+        try {
+          const { text } = await speechToText(blob)
+          if (!text || !text.trim()) {
+            setReply("Couldn't hear you. Try again.")
+            setVoiceState('idle')
+            return
+          }
+          setInput(text)
+          const res = await fetch(`${API}/api/assistant/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ message: text.trim(), mode }),
+          })
+          const data = await res.json().catch(() => ({}))
+          const replyText = res.ok
+            ? (data.text || data.error || 'No response.')
+            : (data.error || data.text || res.statusText || 'Chat failed')
+          setReply(replyText)
+          setVoiceState('playing')
+          const ttsData = await textToSpeech(replyText).catch(() => null)
+          if (ttsData?.audio_url) {
+            await playTTSFromResponse(ttsData).catch(() => {})
+          }
+        } catch (e) {
+          setReply(e.message === 'STT failed' ? "Couldn't hear you." : 'Error: ' + e.message)
+        } finally {
+          setVoiceState('idle')
+        }
+      }
+      recorder.start()
+      setVoiceState('recording')
+    } catch (e) {
+      setReply(e.name === 'NotAllowedError' ? 'Microphone access denied.' : 'Error: ' + e.message)
+      setVoiceState('idle')
+    }
+  }
+
+  const stopVoice = () => {
+    if (voiceState !== 'recording') return
+    if (recorderRef.current && recorderRef.current.state !== 'inactive') {
+      recorderRef.current.stop()
+    }
+  }
+
+  const toggleVoice = () => {
+    if (voiceState === 'recording') stopVoice()
+    else if (voiceState === 'idle') startVoice()
+  }
+
+  const voiceLabel =
+    voiceState === 'recording' ? 'Stop (send)' :
+    voiceState === 'processing' ? 'Processing...' :
+    voiceState === 'playing' ? 'Speaking...' : 'Speak'
+
   return (
     <div className="assistant-fab-wrap">
       {open && (
@@ -81,18 +171,30 @@ export default function AssistantFab() {
               ))}
             </select>
           </div>
-          <p className="assistant-hint">Ask or command (e.g. add $50 to food). Voice (TTS/STT) will be integrated after the UI refactor so you can talk to the app end-to-end.</p>
+          <p className="assistant-hint">Ask or command (e.g. add $50 to food). Use the mic to speak and hear the reply.</p>
           {reply && <div className="assistant-reply">{reply}</div>}
-          <input
-            className="input"
-            placeholder="Ask or command..."
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && send()}
-          />
-          <button type="button" className="btn btn-primary" onClick={send} disabled={loading || !input.trim()}>
-            {loading ? '...' : 'Send'}
-          </button>
+          <div className="assistant-voice-row">
+            <button
+              type="button"
+              className={`btn assistant-mic ${voiceState === 'recording' ? 'assistant-mic-recording' : ''}`}
+              onClick={toggleVoice}
+              disabled={loading || voiceState === 'processing' || voiceState === 'playing'}
+              title={voiceLabel}
+              aria-label={voiceLabel}
+            >
+              {voiceState === 'recording' ? '■' : '🎤'}
+            </button>
+            <input
+              className="input"
+              placeholder="Ask or command..."
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && send()}
+            />
+            <button type="button" className="btn btn-primary" onClick={send} disabled={loading || !input.trim() || voiceState === 'recording'}>
+              {loading ? '...' : 'Send'}
+            </button>
+          </div>
         </div>
       )}
       <button

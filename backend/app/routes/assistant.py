@@ -56,6 +56,47 @@ def refresh_memory():
     return jsonify({"message": "Memory refreshed", "backboard_id": backboard_id}), 200
 
 
+@assistant_bp.route("/stt", methods=["POST"])
+def stt():
+    """ElevenLabs STT: transcribe audio. No file storage; read into memory and return text."""
+    uid = get_current_user_id()
+    if not uid:
+        return jsonify({"error": "Not authenticated"}), 401
+    api_key = os.environ.get("ELEVENLABS_API_KEY", "")
+    if not api_key:
+        return jsonify({"error": "Set ELEVENLABS_API_KEY for STT"}), 503
+    audio_file = request.files.get("audio")
+    if not audio_file:
+        return jsonify({"error": "audio file required"}), 400
+    language = (request.form.get("language") or "en").strip() or "en"
+    try:
+        audio_bytes = audio_file.read()
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+    if not audio_bytes:
+        return jsonify({"error": "empty audio"}), 400
+    try:
+        import requests
+        filename = audio_file.filename or "audio.webm"
+        files = {"file": (filename, audio_bytes, audio_file.content_type or "audio/webm")}
+        data = {"model_id": "scribe_v2", "language_code": language}
+        r = requests.post(
+            "https://api.elevenlabs.io/v1/speech-to-text",
+            headers={"xi-api-key": api_key},
+            files=files,
+            data=data,
+            timeout=30,
+        )
+        if not r.ok:
+            err = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+            return jsonify({"error": err.get("detail", err.get("message", r.text))}), 502
+        out = r.json()
+        text = (out.get("text") or "").strip()
+        return jsonify({"text": text})
+    except requests.RequestException as e:
+        return jsonify({"error": str(e)}), 502
+
+
 @assistant_bp.route("/tts", methods=["POST"])
 def tts():
     """ElevenLabs TTS: convert text to speech. Stub when no key."""
