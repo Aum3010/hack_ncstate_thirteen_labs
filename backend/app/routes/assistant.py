@@ -1,28 +1,11 @@
+import os
 from flask import Blueprint, request, jsonify
 from app.routes.auth import get_current_user_id
-import os
+from app.services.backboard_ingest import ingest_user_context_to_backboard
+from app.services.orchestrator import chat as orchestrator_chat
+from app.models import User
 
 assistant_bp = Blueprint("assistant", __name__)
-
-
-def backboard_chat(message, user_id, api_key):
-    """Call Backboard (Gemini via Backboard) for assistant. Stub if no key."""
-    if not api_key:
-        return {"text": "Assistant is connected via Backboard (Gemini). Set BACKBOARD_API_KEY to enable.", "action": None}
-    try:
-        import requests
-        url = os.environ.get("BACKBOARD_CHAT_URL", "https://api.backboard.io/v1/chat")
-        r = requests.post(
-            url,
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={"message": message, "user_id": str(user_id)},
-            timeout=30,
-        )
-        if r.ok:
-            return r.json()
-    except Exception as e:
-        return {"text": f"Backboard unavailable: {e}", "action": None}
-    return {"text": "Could not get response.", "action": None}
 
 
 @assistant_bp.route("/chat", methods=["POST"])
@@ -34,9 +17,26 @@ def chat():
     message = (data.get("message") or data.get("text") or "").strip()
     if not message:
         return jsonify({"error": "message required"}), 400
+    mode = (data.get("mode") or "").strip() or None
+    if not mode:
+        user = User.query.get(uid)
+        mode = (user.assistant_mode or "balanced") if user else "balanced"
     api_key = os.environ.get("BACKBOARD_API_KEY", "")
-    out = backboard_chat(message, uid, api_key)
+    out = orchestrator_chat(message, uid, api_key, mode=mode)
     return jsonify(out)
+
+
+@assistant_bp.route("/refresh-memory", methods=["POST"])
+def refresh_memory():
+    """Trigger ingest of user financial snapshot to Backboard for memory/RAG."""
+    uid = get_current_user_id()
+    if not uid:
+        return jsonify({"error": "Not authenticated"}), 401
+    api_key = os.environ.get("BACKBOARD_API_KEY", "")
+    if not api_key:
+        return jsonify({"message": "BACKBOARD_API_KEY not set; ingest skipped"}), 200
+    backboard_id = ingest_user_context_to_backboard(uid, api_key)
+    return jsonify({"message": "Memory refreshed", "backboard_id": backboard_id}), 200
 
 
 @assistant_bp.route("/tts", methods=["POST"])

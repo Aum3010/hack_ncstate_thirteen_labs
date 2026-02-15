@@ -1,13 +1,39 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import './AssistantFab.css'
 
 const API = import.meta.env.VITE_API_URL || ''
+const MODES = [
+  { value: 'conservative', label: 'Conservative' },
+  { value: 'balanced', label: 'Balanced' },
+  { value: 'aggressive', label: 'Aggressive' },
+]
 
 export default function AssistantFab() {
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
   const [reply, setReply] = useState('')
   const [loading, setLoading] = useState(false)
+  const [mode, setMode] = useState('balanced')
+
+  useEffect(() => {
+    if (!open) return
+    fetch(`${API}/api/users/me`, { credentials: 'include' })
+      .then((r) => r.ok ? r.json() : null)
+      .then((user) => {
+        if (user?.assistant_mode) setMode(user.assistant_mode)
+      })
+      .catch(() => {})
+  }, [open])
+
+  const persistMode = (newMode) => {
+    setMode(newMode)
+    fetch(`${API}/api/users/me`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ assistant_mode: newMode }),
+    }).catch(() => {})
+  }
 
   const send = async () => {
     const msg = input.trim()
@@ -19,7 +45,7 @@ export default function AssistantFab() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ message: msg }),
+        body: JSON.stringify({ message: msg, mode }),
       })
       const data = await res.json()
       setReply(data.text || data.error || 'No response.')
@@ -38,6 +64,19 @@ export default function AssistantFab() {
           <div className="assistant-panel-header">
             <span>Assistant (Gemini via Backboard)</span>
             <button type="button" className="btn btn-ghost" onClick={() => setOpen(false)}>×</button>
+          </div>
+          <div className="assistant-mode-selector">
+            <span className="assistant-mode-label">Mode:</span>
+            <select
+              className="input assistant-mode-select"
+              value={mode}
+              onChange={(e) => persistMode(e.target.value)}
+              aria-label="Assistant mode"
+            >
+              {MODES.map((m) => (
+                <option key={m.value} value={m.value}>{m.label}</option>
+              ))}
+            </select>
           </div>
           <p className="assistant-hint">Ask or command (e.g. add $50 to food). Voice: ElevenLabs when configured.</p>
           {reply && <div className="assistant-reply">{reply}</div>}
