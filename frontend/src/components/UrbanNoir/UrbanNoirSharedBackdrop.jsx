@@ -1,5 +1,6 @@
 import React, { useRef, useEffect } from 'react'
 import './UrbanNoir.css'
+// import skylineImg from '../../../media/glamorous-skyline-12160696.webp'
 
 /**
  * Shared Urban Noir backdrop for all authenticated pages (except Portfolio).

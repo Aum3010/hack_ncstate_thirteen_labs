@@ -4,7 +4,6 @@ import { getProfile } from '../api/users'
 import { portfolioChat, getPortfolioAllocation, getSpendingAnalysis } from '../api/portfolio'
 import { listGoals } from '../api/goals'
 import { listTransactions } from '../api/transactions'
-import UrbanNoirScene from '../components/UrbanNoir/UrbanNoirScene'
 import './Portfolio.css'
 
 const RISK_OPTIONS = [
@@ -288,7 +287,6 @@ export default function Portfolio() {
 
   return (
     <div className="portfolio-page portfolio-urban">
-      <UrbanNoirScene scrollProgress={scrollProgress} />
       <div
         className="portfolio-scroll-container"
         ref={scrollContainerRef}
