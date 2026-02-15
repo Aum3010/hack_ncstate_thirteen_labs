@@ -84,9 +84,10 @@ def get_experiences():
     total_cents, spent_cents, remaining_cents = _compute_short_term_budget(uid)
 
     try:
-        experiences = generate_experiences(uid, location.strip() or None, remaining_cents)
+        experiences, ai_status = generate_experiences(uid, location.strip() or None, remaining_cents)
     except Exception:
         experiences = []
+        ai_status = "api_error"
 
     tiers = {"free": [], "$": [], "$$": [], "$$$": []}
     for exp in experiences:
@@ -98,6 +99,7 @@ def get_experiences():
 
     return jsonify({
         "experiences": experiences,
+        "ai_status": ai_status,
         "budget": {
             "total_cents": total_cents,
             "spent_cents": spent_cents,

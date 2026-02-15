@@ -1,7 +1,13 @@
 import os
+from pathlib import Path
+
 from dotenv import load_dotenv
 
+# Load from CWD first (project root when using Docker, or backend when running locally)
 load_dotenv()
+# Also load backend/.env so keys work when .env is only in backend/
+_backend_dir = Path(__file__).resolve().parent
+load_dotenv(_backend_dir / ".env")
 
 
 class Config:
