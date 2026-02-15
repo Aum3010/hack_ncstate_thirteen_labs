@@ -65,6 +65,16 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.day-bill.paid {
+  color: var(--text-muted);
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+.day-bill.due:not(.paid),
+.day-bill.overdue:not(.paid) {
+  color: var(--neon-pink);
+  font-weight: 600;
+}
 .day-bill.more {
   color: var(--text-muted);
 }
