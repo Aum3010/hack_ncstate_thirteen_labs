@@ -307,7 +307,7 @@ export default function Layout({ user, onLogout, onUpdate }) {
         </div>
       ))}
       <header className="layout-header">
-        <div className="layout-brand">Nightshade</div>
+        <div className="layout-brand">XIII-LABS</div>
         <nav className="layout-nav">
           {nav.map(({ to, label }) => (
             <NavLink key={to} to={to} className={({ isActive }) => 'layout-nav-link' + (isActive ? ' active' : '')}>
@@ -411,7 +411,7 @@ export default function Layout({ user, onLogout, onUpdate }) {
       <main className="layout-main">
         <Outlet />
       </main>
-      <AssistantFab />
+      {/* <AssistantFab /> */}
       <ProfileModal
         open={profileModalOpen}
         onClose={() => setProfileModalOpen(false)}
