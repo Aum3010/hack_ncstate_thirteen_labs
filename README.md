@@ -51,6 +51,8 @@ Open http://localhost:3000. Use Register/Login (password). Link wallet on Dashbo
 
 ### Full stack with Docker
 
+Create a `.env` file in the project root (next to `docker-compose.yml`) so the backend can load API keys and optional Backboard URLs. Copy from the example: `cp .env.example .env`, then set `BACKBOARD_API_KEY` if you use the assistant.
+
 ```bash
 docker compose up -d --build
 ```
@@ -67,13 +69,24 @@ docker compose up -d --build
 
 ## API keys (optional)
 
-Set in backend `.env` or environment:
+Set in backend `.env` or environment (for Docker full stack, use a root `.env` next to `docker-compose.yml` — e.g. `cp .env.example .env` — and set keys there):
 
 - `BACKBOARD_API_KEY` — memory + Gemini via Backboard (assistant chat).
 - `ELEVENLABS_API_KEY` — TTS for assistant voice.
 - `PRESAGE_API_KEY` — biometric verification.
 - `SOLANA_RPC_URL` — for wallet/balance (default mainnet).
 - `TWELVELABS_API_KEY` — video indexing (optional).
+
+### Backboard connection (assistant)
+
+If you see **"Failed to resolve api.backboard.io"** or Backboard unavailable:
+
+1. **Docker:** Restart after any DNS or env change: `docker compose down` then `docker compose up -d`. The backend container uses DNS servers 8.8.8.8 and 1.1.1.1 to resolve external hosts.
+2. **Override API URL:** If resolution still fails or [Backboard's docs](https://app.backboard.io/docs) show a different base URL, set in your `.env` (root for Docker, or backend for local run):
+   - `BACKBOARD_CHAT_URL=https://<correct-host>/v1/chat`
+   - `BACKBOARD_INGEST_URL=https://<correct-host>/v1/documents`
+   Use the host Backboard documents (e.g. `app.backboard.io` if that is their API host).
+3. **Backend outside Docker:** If you run the backend on the host (`python run.py`), the host's DNS is used; fix resolution or VPN/firewall on the host, or try another network.
 
 ## Database migrations
 

@@ -32,5 +32,9 @@ def update_me():
             user.partition_config = cfg
     if "onboarding_completed" in data:
         user.onboarding_completed = bool(data["onboarding_completed"])
+    if "assistant_mode" in data:
+        mode = (data.get("assistant_mode") or "").strip().lower()
+        if mode in ("conservative", "aggressive", "balanced"):
+            user.assistant_mode = mode
     db.session.commit()
     return jsonify(user.to_dict())
