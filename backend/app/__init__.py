@@ -16,7 +16,7 @@ def create_app(config_class=Config):
 
     from app import models  # noqa: F401 - register models for Alembic
 
-    from app.routes import auth_bp, users_bp, bills_bp, transactions_bp, wallets_bp, cards_bp, documents_bp, assistant_bp, orderbook_bp, goals_bp, dashboard_bp, insights_bp
+    from app.routes import auth_bp, users_bp, bills_bp, transactions_bp, wallets_bp, cards_bp, documents_bp, assistant_bp, orderbook_bp, goals_bp, dashboard_bp, insights_bp, portfolio_bp
     from app.routes.notifications import notifications_bp
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
     app.register_blueprint(dashboard_bp, url_prefix="/api/dashboard")
@@ -30,6 +30,6 @@ def create_app(config_class=Config):
     app.register_blueprint(documents_bp, url_prefix="/api/documents")
     app.register_blueprint(assistant_bp, url_prefix="/api/assistant")
     app.register_blueprint(orderbook_bp, url_prefix="/api/orderbook")
-    app.register_blueprint(notifications_bp, url_prefix="/api/notifications")
+    app.register_blueprint(portfolio_bp, url_prefix="/api/portfolio")
 
     return app

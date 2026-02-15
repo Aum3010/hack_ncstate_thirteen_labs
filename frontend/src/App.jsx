@@ -8,6 +8,7 @@ import Onboarding from './pages/Onboarding'
 import Calendar from './pages/Calendar'
 import Money from './pages/Money'
 import Risk from './pages/Risk'
+import Portfolio from './pages/Portfolio'
 import { getMe } from './api/auth'
 
 export default function App() {
@@ -44,6 +45,7 @@ export default function App() {
           <Route path="calendar" element={<Calendar />} />
           <Route path="money" element={<Money />} />
           <Route path="risk" element={<Risk />} />
+          <Route path="portfolio" element={<Portfolio />} />
         </Route>
         <Route path="*" element={<Navigate to={user ? (needsOnboarding ? "/onboarding" : "/") : "/login"} />} />
       </Routes>
