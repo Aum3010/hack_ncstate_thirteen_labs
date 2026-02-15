@@ -78,7 +78,12 @@ def _run_monte_carlo(
 
             # Loan payments
             baseline_payment = 250.0 if loan_balance > 0 else 0.0  # LOAN_MIN_PAYMENT
-            scenario_payment = baseline_payment + (extra_loan_payment if loan_balance > 0 else 0.0)
+            # Tie debt freedom more directly to the user's aggressiveness:
+            # a portion of their monthly investment effectively behaves like extra principal towards the loan
+            extra_from_investing = 0.2 * monthly_investment if loan_balance > 0 else 0.0
+            scenario_payment = (
+                baseline_payment + extra_loan_payment + extra_from_investing if loan_balance > 0 else 0.0
+            )
 
             # Contributions into investments
             invest_flow = monthly_investment + (scenario_payment if loan_balance <= 0 else 0.0)
@@ -353,6 +358,41 @@ def scenario():
         regime=regime,
     )
     core["regime"] = regime
+
+    # Baseline (balanced) and bull regimes for comparative deltas
+    baseline = _run_monte_carlo(
+        monthly_investment=monthly_investment,
+        extra_loan_payment=extra_loan_payment,
+        horizon_years=horizon_years,
+        simulations=300,
+        regime="balanced",
+    )
+    bull = _run_monte_carlo(
+        monthly_investment=monthly_investment,
+        extra_loan_payment=extra_loan_payment,
+        horizon_years=horizon_years,
+        simulations=300,
+        regime="bull",
+    )
+
+    def _cmp(a: dict, b: dict) -> dict:
+        """Compute simple deltas between two scenario snapshots."""
+        a_p50 = a.get("percentiles", {}).get("p50", 0.0)
+        b_p50 = b.get("percentiles", {}).get("p50", 0.0)
+        a_surv = a.get("survival_prob", 0.0)
+        b_surv = b.get("survival_prob", 0.0)
+        a_liq = a.get("liquidity", {}).get("avg_months", 0.0)
+        b_liq = b.get("liquidity", {}).get("avg_months", 0.0)
+        return {
+            "delta_net_worth_p50": float(a_p50 - b_p50),
+            "delta_survival_prob": float(a_surv - b_surv),
+            "delta_liquidity_months": float(a_liq - b_liq),
+        }
+
+    core["comparisons"] = {
+        "baseline": _cmp(core, baseline),
+        "bull": _cmp(core, bull),
+    }
     coach = _llm_coach(core, monthly_investment, extra_loan_payment)
     core["coach"] = coach
     # For backwards compatibility/simple uses, also expose a flat explanation string

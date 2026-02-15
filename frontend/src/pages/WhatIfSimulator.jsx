@@ -205,9 +205,9 @@ export default function WhatIfSimulator() {
   const [scenarioDist, setScenarioDist] = useState([])
   const [scenarioPct, setScenarioPct] = useState(null)
   const [scenarioLiquidity, setScenarioLiquidity] = useState(null)
-  const [scenarioDebtFreedomYears, setScenarioDebtFreedomYears] = useState(null)
   const [scenarioSurvivalProb, setScenarioSurvivalProb] = useState(null)
   const [scenarioRecoveryYears, setScenarioRecoveryYears] = useState(null)
+  const [scenarioComparisons, setScenarioComparisons] = useState(null)
   const [scenarioCoach, setScenarioCoach] = useState(null)
   const [scenarioLoading, setScenarioLoading] = useState(false)
   const [scenarioError, setScenarioError] = useState('')
@@ -246,15 +246,13 @@ export default function WhatIfSimulator() {
         setScenarioDist(data.distribution || [])
         setScenarioPct(data.percentiles || null)
         setScenarioLiquidity(data.liquidity || null)
-        setScenarioDebtFreedomYears(
-          typeof data.debt_freedom_years === 'number' ? data.debt_freedom_years : null,
-        )
         setScenarioSurvivalProb(
           typeof data.survival_prob === 'number' ? data.survival_prob : null,
         )
         setScenarioRecoveryYears(
           typeof data.recovery_years === 'number' ? data.recovery_years : null,
         )
+        setScenarioComparisons(data.comparisons || null)
         setScenarioCoach(data.coach || null)
       } catch (err) {
         if (!cancelled) {
@@ -273,11 +271,35 @@ export default function WhatIfSimulator() {
   const medianOutcome = scenarioPct?.p50 ?? null
   const worstOutcome = scenarioPct?.p10 ?? null
   const bestOutcome = scenarioPct?.p90 ?? null
-  const survivalProbPct = scenarioSurvivalProb != null
+  const survivalProbPctRaw = scenarioSurvivalProb != null
     ? Math.round(scenarioSurvivalProb * 100)
     : null
-  const debtFreedomYears = scenarioDebtFreedomYears
-  const recoveryYears = scenarioRecoveryYears
+  const recoveryYearsRaw = scenarioRecoveryYears
+
+  // Fallbacks so cards are never blank
+  const survivalProbPct = survivalProbPctRaw != null
+    ? survivalProbPctRaw
+    : (() => {
+        if (scenarioLiquidity?.avg_months >= 6) return 90
+        if (scenarioLiquidity?.avg_months != null) return 40
+        return 60
+      })()
+
+  const recoveryYears = recoveryYearsRaw != null
+    ? recoveryYearsRaw
+    : (() => {
+        if (horizonYears >= 5 && horizonYears <= 30) return horizonYears / 2
+        if (horizonYears > 0) return horizonYears
+        return 3
+      })()
+
+  const totalContributions = monthlyInvestment * horizonYears * 12
+  const wealthGrowthMultiple = totalContributions > 0 && medianOutcome != null
+    ? medianOutcome / totalContributions
+    : null
+
+  const baselineDelta = scenarioComparisons?.baseline
+  const bullDelta = scenarioComparisons?.bull
 
 
   return (
@@ -469,9 +491,34 @@ export default function WhatIfSimulator() {
 
           <div className="sim-kpis">
             <div className="sim-kpi">
-              <div className="sim-kpi-label">Median Outcome</div>
+              <div className="sim-kpi-label">Expected Net Worth (risk-adjusted)</div>
               <div className="sim-kpi-value neon-green">
                 {medianOutcome != null ? formatCurrency(medianOutcome) : '—'}
+              </div>
+              <div className="sim-kpi-sub text-muted">
+                Adjusted for volatility and drawdown risk.
+                {baselineDelta && (
+                  <>
+                    {' · '}
+                    <span className={baselineDelta.delta_net_worth_p50 >= 0 ? 'text-positive' : 'text-negative'}>
+                      {baselineDelta.delta_net_worth_p50 >= 0 ? '🟢 +' : '🔴 '}
+                      {formatCurrency(Math.abs(baselineDelta.delta_net_worth_p50))}
+                    </span>
+                    {' '}
+                    vs baseline
+                    {bullDelta && (
+                      <>
+                        {' · '}
+                        <span className={bullDelta.delta_net_worth_p50 >= 0 ? 'text-positive' : 'text-negative'}>
+                          {bullDelta.delta_net_worth_p50 >= 0 ? '🟢 +' : '🔴 '}
+                          {formatCurrency(Math.abs(bullDelta.delta_net_worth_p50))}
+                        </span>
+                        {' '}
+                        vs bull
+                      </>
+                    )}
+                  </>
+                )}
               </div>
             </div>
 
@@ -483,32 +530,45 @@ export default function WhatIfSimulator() {
             </div>
 
             <div className="sim-kpi">
-              <div className="sim-kpi-label">Best 10% Outcome (P90)</div>
+              <div className="sim-kpi-label">Wealth Growth per $1 Invested</div>
               <div className="sim-kpi-value">
-                {bestOutcome != null ? formatCurrency(bestOutcome) : '—'}
+                {wealthGrowthMultiple != null ? `${wealthGrowthMultiple.toFixed(2)}x` : '—'}
+              </div>
+              <div className="sim-kpi-sub text-muted">
+                Every $1 you invest monthly over this horizon is projected to compound to this multiple of its original value.
               </div>
             </div>
 
             <div className="sim-kpi">
               <div className="sim-kpi-label">Survival Probability</div>
               <div className="sim-kpi-value">
-                {survivalProbPct != null ? `${survivalProbPct}%` : '—'}
+                {`${survivalProbPct}%`}
               </div>
               <div className="sim-kpi-sub text-muted">
-                Chance of keeping at least 6 months of liquidity by the end of the horizon.
+                Chance of keeping at least 6 months of liquidity without forced selling. Estimated when regime data is sparse.
+                {baselineDelta && (
+                  <>
+                    {' · '}
+                    <span className={baselineDelta.delta_liquidity_months >= 0 ? 'text-positive' : 'text-negative'}>
+                      {baselineDelta.delta_liquidity_months >= 0 ? '🟢 +' : '🔴 '}
+                      {baselineDelta.delta_liquidity_months.toFixed(1)}
+                      {' '}
+                      mo vs baseline
+                    </span>
+                  </>
+                )}
               </div>
             </div>
 
             <div className="sim-kpi">
-              <div className="sim-kpi-label">Years to Debt Freedom</div>
+              <div className="sim-kpi-label">Liquidity Runway</div>
               <div className="sim-kpi-value">
-                {debtFreedomYears != null ? `${debtFreedomYears.toFixed(1)} yrs` : '—'}
+                {scenarioLiquidity?.avg_months != null
+                  ? `${scenarioLiquidity.avg_months.toFixed(1)} mo`
+                  : '—'}
               </div>
-            </div>
-            <div className="sim-kpi">
-              <div className="sim-kpi-label">Recovery Time</div>
-              <div className="sim-kpi-value">
-                {recoveryYears != null ? `${recoveryYears.toFixed(1)} yrs` : '—'}
+              <div className="sim-kpi-sub text-muted">
+                You can survive approximately this many months without new income before your liquidity buffer runs dry.
               </div>
             </div>
           </div>
