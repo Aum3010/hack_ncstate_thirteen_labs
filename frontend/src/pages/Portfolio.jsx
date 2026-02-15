@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts'
 import { getProfile } from '../api/users'
 import { portfolioChat, getPortfolioAllocation, getSpendingAnalysis } from '../api/portfolio'
