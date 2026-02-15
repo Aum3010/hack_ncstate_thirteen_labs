@@ -1,0 +1,226 @@
+/* ===== Portfolio Page Layout ===== */
+.portfolio-page {
+  max-width: 1100px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.portfolio-page .page-title {
+  margin: 0;
+}
+
+/* ===== TOP HALF: two columns ===== */
+.portfolio-top {
+  display: flex;
+  gap: 1.5rem;
+  min-height: 380px;
+}
+
+.portfolio-top-left {
+  flex: 1;
+  min-width: 0;
+}
+
+.portfolio-top-right {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* --- Goal input form --- */
+.portfolio-goal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.portfolio-goal-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.portfolio-risk-select {
+  flex: 1;
+  min-width: 0;
+}
+
+/* --- Pie chart --- */
+.portfolio-pie-wrap {
+  min-height: 260px;
+}
+
+.portfolio-pie-placeholder {
+  text-align: center;
+  padding: 3rem 1rem;
+}
+
+.portfolio-error {
+  color: var(--neon-pink);
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+}
+
+/* --- Savings progress --- */
+.portfolio-savings-card {
+  flex: 1;
+}
+
+.portfolio-savings-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.portfolio-savings-item {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.portfolio-savings-item:last-child {
+  border-bottom: none;
+}
+
+.portfolio-savings-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+  margin-bottom: 0.3rem;
+  color: var(--text);
+}
+
+.portfolio-savings-pct {
+  font-family: var(--font-mono);
+  color: var(--neon-green);
+}
+
+.portfolio-progress-bar {
+  height: 6px;
+  background: var(--bg-elevated);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 0.25rem;
+}
+
+.portfolio-progress-fill {
+  height: 100%;
+  background: var(--neon-green);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+  box-shadow: var(--shadow-neon-green);
+}
+
+.portfolio-savings-amounts {
+  font-size: 0.8rem;
+  font-family: var(--font-mono);
+  color: var(--text);
+}
+
+/* --- AI Suggestions --- */
+.portfolio-suggestions-card {
+  flex: 1;
+}
+
+.portfolio-suggestions-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.portfolio-suggestion-item {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.portfolio-suggestion-item:last-child {
+  border-bottom: none;
+}
+
+.portfolio-suggestion-cat {
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  color: var(--neon-blue);
+  text-transform: uppercase;
+}
+
+.portfolio-suggestion-msg {
+  font-size: 0.9rem;
+  color: var(--text);
+  margin: 0.2rem 0;
+  line-height: 1.4;
+}
+
+.portfolio-suggestion-save {
+  font-size: 0.8rem;
+  font-family: var(--font-mono);
+  color: var(--neon-pink);
+}
+
+/* ===== BOTTOM HALF: Chat ===== */
+.portfolio-bottom {
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
+}
+
+.portfolio-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 300px;
+  margin-bottom: 0.75rem;
+}
+
+.portfolio-chat-empty {
+  text-align: center;
+  padding: 2rem 0;
+}
+
+.portfolio-chat-msg {
+  padding: 0.5rem;
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+}
+
+.portfolio-chat-user {
+  background: rgba(0, 212, 255, 0.08);
+}
+
+.portfolio-chat-assistant {
+  background: var(--bg-elevated);
+}
+
+.portfolio-chat-role {
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  display: block;
+  margin-bottom: 0.15rem;
+}
+
+.portfolio-chat-user .portfolio-chat-role {
+  color: var(--neon-blue);
+}
+
+.portfolio-chat-assistant .portfolio-chat-role {
+  color: var(--neon-green);
+}
+
+.portfolio-chat-text {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: pre-wrap;
+}
+
+.portfolio-chat-input-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.portfolio-chat-input-row .input {
+  flex: 1;
+}

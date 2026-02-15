@@ -18,6 +18,7 @@ export default function Layout({ user, onLogout }) {
     { to: '/money', label: 'Money & Crypto' },
     { to: '/calendar', label: 'Calendar & Bills' },
     { to: '/risk', label: 'Risk' },
+    { to: '/portfolio', label: 'Portfolio' },
   ]
 
   return (
