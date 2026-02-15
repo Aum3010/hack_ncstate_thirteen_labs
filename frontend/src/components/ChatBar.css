@@ -123,3 +123,24 @@
 .chatbar-send {
   flex-shrink: 0;
 }
+
+.chatbar-mic {
+  width: 52px;
+  text-align: center;
+}
+
+.chatbar-speak {
+  width: 52px;
+  text-align: center;
+}
+
+.chatbar-mic-recording {
+  border-color: var(--ember-amber);
+  box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.2);
+}
+
+.chatbar-voice-error {
+  color: var(--neon-pink);
+  font-size: 0.8rem;
+  padding: 0 1rem 0.65rem;
+}
