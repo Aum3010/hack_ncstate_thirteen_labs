@@ -92,8 +92,8 @@ def _sol_to_usd_cents(lamports: int) -> int:
 def _parse_tx_balance_delta(tx, address: str) -> tuple[int, str | None]:
     """
     Parse transaction to get net SOL delta for the given address.
-    Returns (amount_cents, description).
-    Positive = received, negative = spent. We store outgoing as positive amount_cents (spend).
+    Returns signed (amount_cents, description).
+    Positive = received (influx), negative = spent (outflow).
     """
     meta = tx.get("meta")
     if not meta:
@@ -119,10 +119,16 @@ def _parse_tx_balance_delta(tx, address: str) -> tuple[int, str | None]:
     post_lamports = int(post[idx])
     delta_lamports = post_lamports - pre_lamports
     fee = int(meta.get("fee", 0))
-    if delta_lamports <= 0:
+    # Outgoing spend (negative amount)
+    if delta_lamports < 0:
         spent_lamports = abs(delta_lamports) + (fee if idx == 0 else 0)
         amount_cents = _sol_to_usd_cents(spent_lamports)
-        return amount_cents, "Solana transfer"
+        return -amount_cents, "Solana transfer out"
+    # Incoming receive (positive amount)
+    if delta_lamports > 0:
+        received_lamports = delta_lamports
+        amount_cents = _sol_to_usd_cents(received_lamports)
+        return amount_cents, "Solana transfer in"
     return 0, None
 
 
@@ -153,14 +159,20 @@ def fetch_and_normalize_transactions(address: str, user_id: int, limit: int = 50
         if not tx:
             continue
         amount_cents, desc = _parse_tx_balance_delta(tx, address)
-        if amount_cents <= 0:
+        # Skip no-change entries
+        if amount_cents == 0:
             continue
         memo_result = _parse_memo_from_tx(tx)
         if memo_result:
             category, description = memo_result
         else:
-            category = "investments"
-            description = desc or "Solana transfer"
+            # Default category based on direction
+            if amount_cents > 0:
+                category = "income"
+                description = desc or "Solana transfer in"
+            else:
+                category = "investments"
+                description = desc or "Solana transfer out"
         block_time = tx.get("blockTime")
         dt = datetime.utcfromtimestamp(block_time) if block_time else datetime.utcnow()
         new_txns.append({

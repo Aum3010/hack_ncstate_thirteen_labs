@@ -81,6 +81,15 @@
   flex-direction: column;
   gap: 0.5rem;
 }
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+.pagination-info {
+  color: var(--text-muted);
+}
 .section-title {
   margin: 0 0 0.5rem 0;
   color: var(--text);
@@ -101,8 +110,9 @@
 }
 .tx-amount {
   font-family: var(--font-mono);
-  color: var(--neon-green);
 }
+.tx-amount.income { color: var(--neon-green); }
+.tx-amount.spend { color: var(--neon-pink); }
 .tx-meta {
   display: flex;
   gap: 0.5rem;

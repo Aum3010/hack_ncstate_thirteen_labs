@@ -33,14 +33,34 @@ export default function Calendar() {
   const [transactions, setTransactions] = useState([])
   const [txLoading, setTxLoading] = useState(true)
   const [selectedDateKey, setSelectedDateKey] = useState(formatKey(new Date()))
+  const [dayTx, setDayTx] = useState([])
+  const [txLimit] = useState(50)
+  const [txOffset, setTxOffset] = useState(0)
+  const [txCount, setTxCount] = useState(0)
 
   useEffect(() => {
     listBills().then(setBills).catch(console.error).finally(() => setLoading(false))
   }, [])
 
   useEffect(() => {
-    listTransactions().then(setTransactions).catch(console.error).finally(() => setTxLoading(false))
+    // Load a recent sample for optional day badges
+    listTransactions({ limit: 200 }).then((data) => setTransactions(data.transactions || [])).catch(console.error).finally(() => setTxLoading(false))
   }, [])
+
+  const loadDayTransactions = (dateKey, offset = 0) => {
+    setTxLoading(true)
+    listTransactions({ date: dateKey, limit: txLimit, offset }).then((data) => {
+      setDayTx(data.transactions || [])
+      setTxCount(Number(data.count || 0))
+      setTxOffset(Number(data.offset || 0))
+    }).catch(console.error).finally(() => setTxLoading(false))
+  }
+
+  useEffect(() => {
+    // Reset to first page when changing selected day
+    setTxOffset(0)
+    loadDayTransactions(selectedDateKey, 0)
+  }, [selectedDateKey])
 
   const byDate = {}
   bills.forEach((b) => {
@@ -154,24 +174,36 @@ export default function Calendar() {
         {txLoading ? (
           <div className="page-loading">Loading transactions...</div>
         ) : (
-          (txByDate[selectedDateKey] || []).length === 0 ? (
+          dayTx.length === 0 ? (
             <p className="text-muted">No transactions for this day.</p>
           ) : (
-            (txByDate[selectedDateKey] || []).map((t) => (
-              <div key={t.id} className="card tx-card">
-                <div className="tx-main">
-                  <span className="tx-desc">{t.description || 'Transaction'}</span>
-                  <span className="tx-amount">${(t.amount_cents / 100).toFixed(2)}</span>
+            dayTx.map((t) => {
+              const cents = Number(t.amount_cents || 0)
+              const isIncome = cents > 0
+              const absAmount = Math.abs(cents) / 100
+              const sign = isIncome ? '+' : '-'
+              const amountStr = `${sign}${absAmount.toFixed(2)}$`
+              return (
+                <div key={t.id} className="card tx-card">
+                  <div className="tx-main">
+                    <span className="tx-desc">{t.description || 'Transaction'}</span>
+                    <span className={`tx-amount ${isIncome ? 'income' : 'spend'}`}>{amountStr}</span>
+                  </div>
+                  <div className="tx-meta">
+                    {t.category && <span className="tx-cat">{t.category}</span>}
+                    {t.source && <span className="tx-source">{t.source}</span>}
+                    {t.transaction_at && <span className="tx-time">{new Date(t.transaction_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
+                  </div>
                 </div>
-                <div className="tx-meta">
-                  {t.category && <span className="tx-cat">{t.category}</span>}
-                  {t.source && <span className="tx-source">{t.source}</span>}
-                  {t.transaction_at && <span className="tx-time">{new Date(t.transaction_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
-                </div>
-              </div>
-            ))
+              )
+            })
           )
         )}
+        <div className="pagination">
+          <button type="button" className="btn btn-ghost" disabled={txOffset <= 0 || txLoading} onClick={() => loadDayTransactions(selectedDateKey, Math.max(0, txOffset - txLimit))}>Prev</button>
+          <span className="pagination-info">Page {Math.floor(txOffset / txLimit) + 1} of {Math.max(1, Math.ceil(txCount / txLimit))}</span>
+          <button type="button" className="btn btn-ghost" disabled={txOffset + txLimit >= txCount || txLoading} onClick={() => loadDayTransactions(selectedDateKey, txOffset + txLimit)}>Next</button>
+        </div>
       </div>
 
       {showDueModal && (
