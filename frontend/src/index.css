@@ -32,6 +32,14 @@
   --shadow-glow-ember: 0 0 32px rgba(217, 119, 6, 0.35);
   /* Pool of light for hero / focal areas */
   --pool-of-light: radial-gradient(ellipse 80% 60% at 50% 20%, rgba(217, 119, 6, 0.08) 0%, transparent 60%);
+
+  /* Urban Noir HUD panels (app-wide) */
+  --hud-bg: rgba(10, 10, 15, 0.88);
+  --hud-bg-solid: #0c0c12;
+  --hud-border: rgba(0, 212, 255, 0.4);
+  --hud-border-pink: rgba(255, 45, 146, 0.4);
+  --hud-glow: 0 0 20px rgba(0, 212, 255, 0.15);
+  --hud-glow-pink: 0 0 20px rgba(255, 45, 146, 0.15);
 }
 
 * {
@@ -47,18 +55,18 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Victorian damask wallpaper -- real ornate SVG tile + vignette depth */
+/* Urban Noir: dark sky gradient + subtle vignette (no damask) */
 body::before {
   content: '';
   position: fixed;
   inset: 0;
   background:
-    radial-gradient(ellipse at 50% 50%, transparent 30%, rgba(0, 0, 0, 0.6) 100%),
-    url('/textures/victorian-damask.svg') repeat;
-  background-size: cover, 200px 200px;
+    radial-gradient(ellipse 120% 80% at 50% 20%, rgba(15, 15, 25, 0.6) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 100%, rgba(20, 20, 35, 0.5) 0%, transparent 60%),
+    linear-gradient(180deg, #08080c 0%, #0a0a12 40%, #0c0c14 100%);
   pointer-events: none;
   z-index: 0;
-  opacity: 0.8;
+  opacity: 1;
 }
 
 body > #root {
@@ -102,8 +110,9 @@ a:hover {
 .page-title {
   font-family: var(--font-display);
   font-size: 1.75rem;
-  color: var(--ember-amber);
+  color: var(--neon-blue);
   letter-spacing: 0.02em;
+  text-shadow: var(--shadow-neon-blue);
 }
 
 /* Auth pages: stronger wallpaper overlay (in addition to body) */

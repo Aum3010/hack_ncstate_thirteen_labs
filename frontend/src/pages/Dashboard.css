@@ -6,9 +6,10 @@
 .page-title {
   font-size: 1.75rem;
   font-family: var(--font-display);
-  color: var(--ember-amber);
+  color: var(--neon-blue);
   margin: 0 0 1.5rem 0;
   letter-spacing: 0.02em;
+  text-shadow: 0 0 12px rgba(0, 212, 255, 0.3);
 }
 
 .page-loading {
@@ -21,7 +22,7 @@
 .dashboard-section .dossier-title {
   font-family: var(--font-display);
   font-size: 1.1rem;
-  color: var(--ember-amber);
+  color: var(--neon-blue);
   margin: 0 0 0.75rem 0;
 }
 

@@ -8,7 +8,6 @@ import Onboarding from './pages/Onboarding'
 import Bills from './pages/Bills'
 import Calendar from './pages/Calendar'
 import Money from './pages/Money'
-import Risk from './pages/Risk'
 import Portfolio from './pages/Portfolio'
 import Experiences from './pages/Experiences'
 import { getMe } from './api/auth'
@@ -50,7 +49,7 @@ export default function App() {
           <Route path="bills" element={needsProfile ? <Navigate to="/profile" replace /> : <Bills />} />
           <Route path="calendar" element={needsProfile ? <Navigate to="/profile" replace /> : <Calendar />} />
           <Route path="money" element={<Navigate to="/" replace />} />
-          <Route path="risk" element={needsProfile ? <Navigate to="/profile" replace /> : <Risk />} />
+          <Route path="risk" element={<Navigate to="/portfolio" replace />} />
           <Route path="experiences" element={needsProfile ? <Navigate to="/profile" replace /> : <Experiences />} />
           <Route path="portfolio" element={needsProfile ? <Navigate to="/profile" replace /> : <Portfolio />} />
         </Route>

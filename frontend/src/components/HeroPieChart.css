@@ -22,18 +22,19 @@
 }
 
 .hero-title {
-  font-size: 1.1rem;
+  font-size: 1.25rem;
   font-family: var(--font-display);
-  color: var(--ember-amber);
+  color: var(--neon-blue);
   margin: 0;
   letter-spacing: 0.04em;
+  text-shadow: 0 0 12px rgba(0, 212, 255, 0.3);
 }
 
-/* Chart container -- big, fills viewport */
+/* Chart container -- main hero, large and prominent */
 .hero-pie-chart-wrap {
   position: relative;
-  width: 90vmin;
-  max-width: 680px;
+  width: 92vmin;
+  max-width: 720px;
   aspect-ratio: 1 / 1;
 }
 

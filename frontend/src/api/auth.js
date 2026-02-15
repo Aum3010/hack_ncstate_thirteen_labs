@@ -1,6 +1,10 @@
 import { connectPhantom, getPhantomProvider, getPhantomAddress } from './phantom'
 
-const API = import.meta.env.VITE_API_URL || ''
+const API = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+
+if (import.meta.env.DEV && !API) {
+  // Empty is correct when using Vite proxy (Docker); API calls use relative /api and get proxied
+}
 
 function credentials() {
   return { credentials: 'include' }
@@ -77,36 +81,63 @@ function toBase64(u8) {
 export async function loginWithPhantom() {
   const provider = getPhantomProvider()
   if (!provider) throw new Error('Phantom wallet not installed')
+
   let address = getPhantomAddress()
   if (!address) {
-    const res = await connectPhantom()
-    address = res.address
+    try {
+      const res = await connectPhantom()
+      address = res?.address
+    } catch (e) {
+      throw new Error(e?.message || 'Could not connect to Phantom. Approve the popup or try again.')
+    }
   }
+  if (!address) throw new Error('No wallet address from Phantom')
 
-  const challengeRes = await fetch(`${API}/api/auth/solana/challenge`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    ...credentials(),
-  })
-  if (!challengeRes.ok) throw new Error('Failed to get sign-in challenge')
+  let challengeRes
+  try {
+    challengeRes = await fetch(`${API}/api/auth/solana/challenge`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      ...credentials(),
+    })
+  } catch (e) {
+    throw new Error(
+      `Cannot reach backend at ${API || '(check VITE_API_URL)'}. Is it running? ` +
+      (e?.message || 'Network error')
+    )
+  }
+  if (!challengeRes.ok) {
+    const err = await challengeRes.json().catch(() => ({}))
+    throw new Error(err.error || `Challenge failed (${challengeRes.status})`)
+  }
   const { message } = await challengeRes.json()
-  if (!message) throw new Error('Invalid challenge')
+  if (!message) throw new Error('Invalid challenge from server')
 
-  const encodedMessage = new TextEncoder().encode(message)
-  const signResult = await provider.signMessage(encodedMessage, 'utf8')
+  let signResult
+  try {
+    const encodedMessage = new TextEncoder().encode(message)
+    signResult = await provider.signMessage(encodedMessage, 'utf8')
+  } catch (e) {
+    throw new Error(e?.message || 'You declined the signature in Phantom. Try again and approve.')
+  }
   const sig = signResult?.signature
   const signature = typeof sig === 'string' ? sig : (sig && sig.length === 64 ? toBase64(sig) : null)
-  if (!signature) throw new Error('No signature from wallet')
+  if (!signature) throw new Error('No signature from Phantom')
 
-  const res = await fetch(`${API}/api/auth/solana/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    ...credentials(),
-    body: JSON.stringify({ address, message, signature }),
-  })
+  let res
+  try {
+    res = await fetch(`${API}/api/auth/solana/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      ...credentials(),
+      body: JSON.stringify({ address, message, signature }),
+    })
+  } catch (e) {
+    throw new Error(`Login request failed: ${e?.message || 'Network error'}`)
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
-    throw new Error(err.error || 'Sign in failed')
+    throw new Error(err.error || `Sign in failed (${res.status})`)
   }
   return res.json()
 }

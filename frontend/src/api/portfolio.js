@@ -83,8 +83,11 @@ export async function portfolioChat(messageOrPayload, mode, messages = null) {
     ...credentials(),
     body: JSON.stringify(payload),
   })
-  if (!res.ok) throw new Error('Chat failed')
-  return res.json()
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error(data.error || data.text || res.statusText || 'Chat failed')
+  }
+  return data
 }
 
 export async function textToSpeech(text) {

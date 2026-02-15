@@ -6,6 +6,89 @@
   gap: 1.5rem;
 }
 
+/* ===== Urban Noir full-page scene ===== */
+.portfolio-page.portfolio-urban {
+  max-width: none;
+  width: 100%;
+  min-height: 100vh;
+  position: relative;
+  padding: 0;
+}
+
+.portfolio-scroll-container {
+  position: relative;
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  z-index: 1;
+}
+
+.portfolio-scroll-spacer {
+  min-height: 250vh;
+  pointer-events: none;
+}
+
+.portfolio-hud {
+  position: relative;
+  z-index: 2;
+  padding: 1rem 1.5rem 4rem;
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.portfolio-hud-title-card {
+  padding: 1rem 1.5rem;
+  border: 1px solid var(--hud-border-pink);
+  box-shadow: var(--hud-glow-pink);
+}
+
+.portfolio-urban-title {
+  margin: 0 0 0.25rem 0;
+  font-family: var(--font-display);
+  font-size: 2rem;
+  letter-spacing: 0.12em;
+  color: var(--neon-pink);
+  text-shadow: 0 0 20px rgba(255, 45, 146, 0.6);
+}
+
+.portfolio-urban-subtitle {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.portfolio-hud .section-title {
+  color: var(--neon-blue);
+  font-family: var(--font-display);
+  letter-spacing: 0.04em;
+  text-shadow: 0 0 12px rgba(0, 212, 255, 0.4);
+}
+
+.portfolio-hud .card {
+  border-color: var(--hud-border);
+  box-shadow: var(--hud-glow);
+}
+
+.portfolio-hud .portfolio-chat-user .portfolio-chat-role {
+  color: var(--neon-blue);
+}
+
+.portfolio-hud .portfolio-chat-assistant .portfolio-chat-role {
+  color: var(--neon-green);
+}
+
+.portfolio-hud .portfolio-chat-input-row .input:focus {
+  border-color: var(--neon-blue);
+  box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.25);
+}
+
+.portfolio-hud .btn-primary {
+  box-shadow: 0 0 16px rgba(0, 212, 255, 0.35);
+}
+
 .portfolio-page .page-title {
   margin: 0;
 }

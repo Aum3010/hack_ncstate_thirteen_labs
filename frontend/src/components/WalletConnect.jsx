@@ -29,9 +29,13 @@ export default function WalletConnect({ onConnect, wallets: walletsProp }) {
   const handleConnectPhantom = async () => {
     setError('')
     setPhantomLoading(true)
+    const timeoutMs = 35000
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Connection timed out. Is the backend running? Check VITE_API_URL.')), timeoutMs)
+    )
     try {
       const { address: addr } = await connectPhantom()
-      await connectWallet(addr)
+      await Promise.race([connectWallet(addr), timeoutPromise])
       onConnect?.()
     } catch (err) {
       setError(err.message || 'Failed to connect Phantom')

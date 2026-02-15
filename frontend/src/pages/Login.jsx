@@ -36,8 +36,12 @@ export default function Login({ onLogin }) {
   const handlePhantom = async () => {
     setError('')
     setPhantomLoading(true)
+    const timeoutMs = 35000
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Phantom sign-in timed out. Approve in Phantom or check VITE_API_URL.')), timeoutMs)
+    )
     try {
-      const { user } = await loginWithPhantom()
+      const { user } = await Promise.race([loginWithPhantom(), timeoutPromise])
       onLogin(user)
       navigate((user?.email || user?.username) ? '/' : '/profile')
     } catch (err) {

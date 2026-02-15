@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, lazy, Suspense } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { logout } from '../api/auth'
 import { listBills, markPaid } from '../api/bills'
@@ -6,9 +6,8 @@ import { listWallets, syncWallet } from '../api/wallets'
 import AssistantFab from './AssistantFab'
 import ChatBar from './ChatBar'
 import ProfileModal from './ProfileModal'
+import UrbanNoirSharedBackdrop from './UrbanNoir/UrbanNoirSharedBackdrop'
 import './Layout.css'
-
-const Scene3DEnvironment = lazy(() => import('./Scene3DEnvironment'))
 
 export default function Layout({ user, onLogout, onUpdate }) {
   const navigate = useNavigate()
@@ -193,18 +192,16 @@ export default function Layout({ user, onLogout, onUpdate }) {
 
   const nav = [
     { to: '/', label: 'Home', end: true },
+    { to: '/portfolio', label: 'Investments' },
+    { to: '/calendar', label: 'Bill payments' },
     { to: '/experiences', label: 'Experiences' },
-    { to: '/money', label: 'Money & Crypto' },
-    { to: '/calendar', label: 'Calendar & Bills' },
-    { to: '/risk', label: 'Investments' },
-    { to: '/portfolio', label: 'Portfolio' },
   ]
+
+  const isPortfolio = location.pathname === '/portfolio'
 
   return (
     <div className="layout">
-      <Suspense fallback={null}>
-        <Scene3DEnvironment />
-      </Suspense>
+      {!isPortfolio && <UrbanNoirSharedBackdrop />}
       <header className="layout-header">
         <NavLink to="/" className="layout-brand">
           Nightshade
@@ -306,7 +303,7 @@ export default function Layout({ user, onLogout, onUpdate }) {
           </button>
         </div>
       </header>
-      <main className="layout-main">
+      <main className={'layout-main' + (isPortfolio ? ' is-portfolio' : '')}>
         <Outlet />
       </main>
       <ProfileModal

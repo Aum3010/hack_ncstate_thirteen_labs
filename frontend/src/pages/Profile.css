@@ -1,0 +1,83 @@
+.profile-page {
+  max-width: 32rem;
+}
+
+.profile-banner {
+  margin-bottom: 1.5rem;
+}
+
+.profile-banner-text {
+  margin: 0;
+  font-weight: 500;
+}
+
+.profile-section {
+  margin-bottom: 1.5rem;
+}
+
+.profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.profile-success {
+  color: var(--neon-green);
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+}
+
+.profile-meta {
+  margin-top: 1rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.profile-wallet-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.75rem 0 0;
+}
+
+.profile-wallet-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--border);
+}
+
+.profile-wallet-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.profile-wallet-row .profile-wallet-chain {
+  flex-shrink: 0;
+}
+
+.profile-wallet-row .profile-wallet-address {
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-wallet-disconnect {
+  flex-shrink: 0;
+  font-size: 0.85rem;
+}
+
+.profile-wallet-chain {
+  text-transform: capitalize;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  min-width: 4rem;
+}
+
+.profile-wallet-address {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+}

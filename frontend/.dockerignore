@@ -1,0 +1,6 @@
+# Exclude local .env so Docker uses docker-compose env (VITE_API_URL="" for proxy)
+.env
+.env.local
+.env.*.local
+node_modules
+dist

@@ -34,6 +34,8 @@ services:
     dns:
       - 8.8.8.8
       - 1.1.1.1
+    extra_hosts:
+      - "app.backboard.io:15.222.232.56"
     env_file:
       - .env
     environment:
@@ -58,7 +60,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      REACT_APP_API_URL: http://localhost:5000
+      # Leave empty so API calls use relative URLs (/api/...) and go through Vite proxy (no CORS)
+      VITE_API_URL: ""
       VITE_API_PROXY_TARGET: http://backend:5000
     depends_on:
       - backend

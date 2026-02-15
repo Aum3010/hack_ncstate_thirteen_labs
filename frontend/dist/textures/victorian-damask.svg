@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
+  <defs>
+    <pattern id="damask" x="0" y="0" width="200" height="200" patternUnits="userSpaceOnUse">
+      <!-- Central medallion -->
+      <path d="M100 20 C115 35, 130 45, 130 65 C130 85, 115 95, 100 100 C85 95, 70 85, 70 65 C70 45, 85 35, 100 20z" 
+            fill="none" stroke="#d97706" stroke-width="1.2" opacity="0.5"/>
+      <path d="M100 30 C112 42, 122 50, 122 65 C122 80, 112 88, 100 92 C88 88, 78 80, 78 65 C78 50, 88 42, 100 30z" 
+            fill="none" stroke="#d97706" stroke-width="0.6" opacity="0.3"/>
+      <!-- Central floral dot -->
+      <circle cx="100" cy="62" r="5" fill="#d97706" opacity="0.12"/>
+      <circle cx="100" cy="62" r="2.5" fill="#d97706" opacity="0.2"/>
+      <!-- Leaf scrolls left -->
+      <path d="M70 65 C60 55, 45 50, 35 55 C25 60, 28 72, 38 75 C48 78, 58 72, 70 65z" 
+            fill="none" stroke="#3d2914" stroke-width="0.8" opacity="0.4"/>
+      <path d="M38 75 C32 80, 25 88, 30 95 C35 102, 45 98, 50 90" 
+            fill="none" stroke="#3d2914" stroke-width="0.6" opacity="0.3"/>
+      <!-- Leaf scrolls right -->
+      <path d="M130 65 C140 55, 155 50, 165 55 C175 60, 172 72, 162 75 C152 78, 142 72, 130 65z" 
+            fill="none" stroke="#3d2914" stroke-width="0.8" opacity="0.4"/>
+      <path d="M162 75 C168 80, 175 88, 170 95 C165 102, 155 98, 150 90" 
+            fill="none" stroke="#3d2914" stroke-width="0.6" opacity="0.3"/>
+      <!-- Bottom medallion (offset half-drop) -->
+      <path d="M100 120 C115 135, 130 145, 130 165 C130 185, 115 195, 100 200 C85 195, 70 185, 70 165 C70 145, 85 135, 100 120z" 
+            fill="none" stroke="#6b2d3a" stroke-width="0.9" opacity="0.35"/>
+      <path d="M100 130 C110 140, 118 148, 118 162 C118 176, 110 184, 100 188 C90 184, 82 176, 82 162 C82 148, 90 140, 100 130z" 
+            fill="none" stroke="#6b2d3a" stroke-width="0.5" opacity="0.25"/>
+      <circle cx="100" cy="160" r="3.5" fill="#6b2d3a" opacity="0.12"/>
+      <!-- Corner flourishes (top-left quadrant, mirrored) -->
+      <path d="M0 0 C20 10, 35 25, 30 45 C25 55, 15 50, 10 40 C5 30, 8 15, 0 0z" 
+            fill="none" stroke="#d97706" stroke-width="0.7" opacity="0.25"/>
+      <path d="M200 0 C180 10, 165 25, 170 45 C175 55, 185 50, 190 40 C195 30, 192 15, 200 0z" 
+            fill="none" stroke="#d97706" stroke-width="0.7" opacity="0.25"/>
+      <!-- Bottom corner flourishes -->
+      <path d="M0 200 C20 190, 35 175, 30 155 C25 145, 15 150, 10 160 C5 170, 8 185, 0 200z" 
+            fill="none" stroke="#d97706" stroke-width="0.7" opacity="0.25"/>
+      <path d="M200 200 C180 190, 165 175, 170 155 C175 145, 185 150, 190 160 C195 170, 192 185, 200 200z" 
+            fill="none" stroke="#d97706" stroke-width="0.7" opacity="0.25"/>
+      <!-- Vertical vine lines -->
+      <path d="M50 0 C52 20, 48 40, 50 60 C52 80, 48 100, 50 120 C52 140, 48 160, 50 180 C52 195, 48 200, 50 200" 
+            fill="none" stroke="#3d2914" stroke-width="0.3" opacity="0.2"/>
+      <path d="M150 0 C148 20, 152 40, 150 60 C148 80, 152 100, 150 120 C148 140, 152 160, 150 180 C148 195, 152 200, 150 200" 
+            fill="none" stroke="#3d2914" stroke-width="0.3" opacity="0.2"/>
+      <!-- Horizontal vine lines -->
+      <path d="M0 100 C20 98, 40 102, 60 100 C80 98, 100 102, 120 100 C140 98, 160 102, 180 100 C195 98, 200 102, 200 100" 
+            fill="none" stroke="#3d2914" stroke-width="0.3" opacity="0.15"/>
+      <!-- Small decorative dots along the vines -->
+      <circle cx="50" cy="40" r="1.5" fill="#d97706" opacity="0.15"/>
+      <circle cx="50" cy="160" r="1.5" fill="#d97706" opacity="0.15"/>
+      <circle cx="150" cy="40" r="1.5" fill="#d97706" opacity="0.15"/>
+      <circle cx="150" cy="160" r="1.5" fill="#d97706" opacity="0.15"/>
+      <!-- Diamond accents at intersections -->
+      <path d="M50 100 L53 97 L56 100 L53 103z" fill="#3d2914" opacity="0.15"/>
+      <path d="M150 100 L153 97 L156 100 L153 103z" fill="#3d2914" opacity="0.15"/>
+    </pattern>
+  </defs>
+  <rect width="200" height="200" fill="url(#damask)"/>
+</svg>

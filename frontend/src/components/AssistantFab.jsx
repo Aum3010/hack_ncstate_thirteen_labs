@@ -47,8 +47,11 @@ export default function AssistantFab() {
         credentials: 'include',
         body: JSON.stringify({ message: msg, mode }),
       })
-      const data = await res.json()
-      setReply(data.text || data.error || 'No response.')
+      const data = await res.json().catch(() => ({}))
+      const replyText = res.ok
+        ? (data.text || data.error || 'No response.')
+        : (data.error || data.text || res.statusText || 'Chat failed')
+      setReply(replyText)
       setInput('')
     } catch (e) {
       setReply('Error: ' + e.message)

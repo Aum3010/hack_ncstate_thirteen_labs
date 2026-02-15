@@ -1,0 +1,169 @@
+/* Urban Noir shared backdrop and HUD utilities */
+.urban-noir-shared-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.urban-noir-shared-backdrop .urban-noir-gradient {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, #06060a 0%, #0a0a12 35%, #0c0c14 70%, #08080e 100%);
+}
+
+.urban-noir-shared-backdrop .urban-noir-city-layer {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center bottom;
+  background-repeat: no-repeat;
+  opacity: 0.25;
+}
+
+.urban-noir-shared-backdrop .urban-noir-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.4) 100%);
+}
+
+/* Portfolio full-scene backdrop (dimmed city image) */
+.urban-noir-scene {
+  overflow: hidden;
+}
+
+.urban-noir-backdrop {
+  pointer-events: none;
+}
+.urban-noir-backdrop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.5) 100%);
+}
+
+/* Parallax skyline layers */
+.urban-noir-skyline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  top: 30%;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.urban-noir-skyline-layer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 85%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 0;
+  transition: transform 0.08s ease-out;
+}
+
+.urban-noir-building {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  transform-style: preserve-3d;
+  perspective: 400px;
+}
+
+.urban-noir-building-face {
+  position: relative;
+  background: #0a0a12;
+  border: 1px solid rgba(40, 40, 55, 0.6);
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 2px;
+  padding: 4px;
+  box-sizing: border-box;
+}
+
+.urban-noir-building-face.side {
+  transform: rotateY(-12deg) translateZ(-8px);
+  background: #08080e;
+  border-left: none;
+}
+
+.urban-noir-window {
+  width: 8px;
+  height: 10px;
+  background: rgba(180, 200, 255, 0.7);
+  box-shadow: 0 0 6px rgba(180, 200, 255, 0.5);
+  animation: urban-noir-flicker 4s ease-in-out infinite;
+}
+
+.urban-noir-window.off {
+  background: rgba(30, 35, 50, 0.5);
+  box-shadow: none;
+  animation: urban-noir-flicker-off 5s ease-in-out infinite;
+}
+
+@keyframes urban-noir-flicker {
+  0%, 90%, 100% { opacity: 1; }
+  92% { opacity: 0.3; }
+  94% { opacity: 1; }
+  96% { opacity: 0.6; }
+  98% { opacity: 1; }
+}
+
+@keyframes urban-noir-flicker-off {
+  0%, 85%, 100% { opacity: 0.4; }
+  87% { opacity: 0.9; }
+  89% { opacity: 0.4; }
+  92% { opacity: 0.8; }
+  94% { opacity: 0.4; }
+}
+
+.urban-noir-neon-sign {
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-display);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--neon-blue);
+  text-shadow: 0 0 8px var(--neon-blue), 0 0 16px rgba(0, 212, 255, 0.5);
+  white-space: nowrap;
+}
+
+.urban-noir-neon-sign.pink {
+  color: var(--neon-pink);
+  text-shadow: 0 0 8px var(--neon-pink), 0 0 16px rgba(255, 45, 146, 0.5);
+}
+
+.urban-noir-moon {
+  position: absolute;
+  top: 12%;
+  right: 15%;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 32%, #e8e8f0, #a0a0b8);
+  box-shadow:
+    0 0 24px rgba(230, 230, 255, 0.7),
+    0 0 48px rgba(200, 210, 255, 0.25),
+    inset -6px -6px 12px rgba(0,0,0,0.15);
+}
+
+.urban-noir-moon::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 55%;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #0a0a12;
+  transform: translate(-50%, -50%);
+}

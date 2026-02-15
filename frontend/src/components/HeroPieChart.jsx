@@ -9,7 +9,7 @@ const PARTITION_KEYS = ['investments', 'bill_payments', 'short_term_goals']
 const LABELS = {
   investments: 'Investments',
   bill_payments: 'Bill Payments',
-  short_term_goals: 'Short-term Goals',
+  short_term_goals: 'Experiences',
 }
 const COLORS = {
   investments: '#c4a035',

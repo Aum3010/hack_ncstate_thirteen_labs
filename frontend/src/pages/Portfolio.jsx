@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts'
-import { portfolioChat } from '../api/portfolio'
+import { getProfile } from '../api/users'
+import { portfolioChat, getPortfolioAllocation, getSpendingAnalysis } from '../api/portfolio'
 import { listGoals } from '../api/goals'
 import { listTransactions } from '../api/transactions'
+import UrbanNoirScene from '../components/UrbanNoir/UrbanNoirScene'
 import './Portfolio.css'
 
 const RISK_OPTIONS = [
@@ -11,9 +13,18 @@ const RISK_OPTIONS = [
   { value: 'aggressive', label: 'Aggressive' },
 ]
 
+/** Map LLM category name to our 5-bucket key */
+function mapCategoryToBucket(name) {
+  const n = (name || '').toLowerCase()
+  if (n.includes('roth') || n.includes('ira')) return 'roth'
+  if (n.includes('401') || n.includes('k)')) return '_401k'
+  if (n.includes('hysa') || n.includes('cash') || n.includes('savings')) return 'hysa'
+  if (n.includes('gold') || n.includes('bond') || n.includes('real estate')) return 'gold'
+  return 'stocks'
+}
+
 export default function Portfolio() {
   // --- Manual allocation state (top-left) ---
-  const INCOME = 10000
   const COLORS = {
     stocks: '#10b981',
     roth: '#8b5cf6',
@@ -47,15 +58,108 @@ export default function Portfolio() {
   const [risk, setRisk] = useState('balanced')
   const [hasLongTermGoal, setHasLongTermGoal] = useState(false)
   const [alloc, setAlloc] = useState(PRESETS.balanced)
-
-  // --- Spending analysis removed; focusing on investment summary ---
+  const [profileGoal, setProfileGoal] = useState('')
+  const [income, setIncome] = useState(null) // from profile, transactions, or 10000 fallback
+  const [spendingSuggestions, setSpendingSuggestions] = useState([])
+  const [allocationLoading, setAllocationLoading] = useState(false)
 
   // --- Chat state (bottom) ---
   const [messages, setMessages] = useState([])
   const [chatInput, setChatInput] = useState('')
   const [chatLoading, setChatLoading] = useState(false)
+  const [scrollProgress, setScrollProgress] = useState(0)
+  const scrollContainerRef = useRef(null)
+
+  const handleScroll = useCallback(() => {
+    const el = scrollContainerRef.current
+    if (!el) return
+    const { scrollTop, scrollHeight, clientHeight } = el
+    const maxScroll = scrollHeight - clientHeight
+    const progress = maxScroll <= 0 ? 0 : Math.min(1, scrollTop / maxScroll)
+    setScrollProgress(progress)
+  }, [])
 
   // No spending analysis fetch
+
+  // --- Load profile on mount: risk_tolerance, goals, income; then fetch LLM allocation ---
+  useEffect(() => {
+    const parseIncome = (val) => {
+      if (val == null) return null
+      if (typeof val === 'number' && val > 0) return val
+      const s = String(val).replace(/,/g, '').trim()
+      const match = s.match(/[\d.]+/)
+      return match ? parseFloat(match) : null
+    }
+
+    Promise.all([getProfile(), listTransactions({ limit: 200 })])
+      .then(([user, txData]) => {
+        if (!user) return
+        const pq = user.profile_questionnaire || {}
+        const oa = user.onboarding_answers || {}
+
+        const r = (pq.risk_tolerance || oa.risk_tolerance || '').toLowerCase()
+        const validRisk = r === 'conservative' || r === 'balanced' || r === 'aggressive'
+        if (validRisk) {
+          setRisk(r)
+          setAlloc(PRESETS[r] || PRESETS.balanced)
+        }
+
+        const goal = (pq.long_term_goal || pq.short_term_goal || oa.main_focus || '').trim()
+        if (goal) setProfileGoal(goal)
+
+        let inc = parseIncome(pq.income)
+        if (inc == null) {
+          const txs = txData?.transactions || []
+          const now = new Date()
+          const thisMonth = txs.filter((t) => {
+            const d = t.transaction_at ? new Date(t.transaction_at) : null
+            return d && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+          })
+          const derived = thisMonth
+            .filter((t) => (Number(t.amount_cents) || 0) > 0)
+            .reduce((sum, t) => sum + (Number(t.amount_cents) || 0) / 100, 0)
+          inc = derived > 0 ? Math.round(derived) : null
+        }
+        setIncome(inc ?? 10000)
+
+        // Fetch LLM allocation with profile goal and risk
+        setAllocationLoading(true)
+        getPortfolioAllocation(goal || 'general growth and retirement', validRisk ? r : 'balanced')
+          .then((data) => {
+            const cats = data?.categories
+            if (Array.isArray(cats) && cats.length > 0) {
+              const aggregated = { stocks: 0, roth: 0, _401k: 0, hysa: 0, gold: 0 }
+              for (const c of cats) {
+                const key = mapCategoryToBucket(c.name)
+                const pct = Math.round(Number(c.percentage) || 0)
+                if (aggregated[key] !== undefined) aggregated[key] += pct
+              }
+              const total = Object.values(aggregated).reduce((a, b) => a + b, 0)
+              if (total > 0) {
+                let remainder = 100 - total
+                const keys = Object.keys(aggregated)
+                for (let i = 0; i < keys.length && remainder !== 0; i++) {
+                  const k = keys[i]
+                  const add = remainder > 0 ? 1 : -1
+                  aggregated[k] = Math.max(0, Math.min(100, aggregated[k] + add))
+                  remainder -= add
+                }
+                setAlloc(aggregated)
+              }
+            }
+          })
+          .catch(() => {})
+          .finally(() => setAllocationLoading(false))
+      })
+      .catch(() => {})
+  }, [])
+
+  // --- Load spending analysis on mount ---
+  useEffect(() => {
+    getSpendingAnalysis()
+      .then((data) => setSpendingSuggestions(data?.suggestions || []))
+      .catch(() => setSpendingSuggestions([]))
+  }, [])
 
   // --- Allocation handlers ---
   // Load goals to check if any long-term goal exists
@@ -183,16 +287,26 @@ export default function Portfolio() {
   }, [alloc, risk])
 
   return (
-    <div className="portfolio-page">
-      <h1 className="page-title">Portfolio</h1>
+    <div className="portfolio-page portfolio-urban">
+      <UrbanNoirScene scrollProgress={scrollProgress} />
+      <div
+        className="portfolio-scroll-container"
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+      >
+        <div className="portfolio-scroll-spacer" aria-hidden="true" />
+        <div className="portfolio-hud">
+          <div className="portfolio-hud-title-card card">
+            <h1 className="portfolio-urban-title">URBAN NOIR</h1>
+            <p className="portfolio-urban-subtitle">Investments – scroll to ascend above the city.</p>
+          </div>
 
-      {/* ========== TOP HALF ========== */}
-      <div className="portfolio-top">
+          <div className="portfolio-top">
 
         {/* --- TOP LEFT: Allocation Pie Chart --- */}
         <div className="portfolio-top-left card">
           <h2 className="section-title">Portfolio Allocation</h2>
-          <div className="portfolio-goal-row">
+          <div className="portfolio-goal-row" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
             <select
               className="input portfolio-risk-select"
               value={risk}
@@ -207,6 +321,42 @@ export default function Portfolio() {
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => {
+                setAllocationLoading(true)
+                getPortfolioAllocation(profileGoal || 'general growth and retirement', risk)
+                  .then((data) => {
+                    const cats = data?.categories
+                    if (Array.isArray(cats) && cats.length > 0) {
+                      const aggregated = { stocks: 0, roth: 0, _401k: 0, hysa: 0, gold: 0 }
+                      for (const c of cats) {
+                        const key = mapCategoryToBucket(c.name)
+                        const pct = Math.round(Number(c.percentage) || 0)
+                        if (aggregated[key] !== undefined) aggregated[key] += pct
+                      }
+                      const total = Object.values(aggregated).reduce((a, b) => a + b, 0)
+                      if (total > 0) {
+                        let remainder = 100 - total
+                        const keys = Object.keys(aggregated)
+                        for (let i = 0; i < keys.length && remainder !== 0; i++) {
+                          const k = keys[i]
+                          const add = remainder > 0 ? 1 : -1
+                          aggregated[k] = Math.max(0, Math.min(100, aggregated[k] + add))
+                          remainder -= add
+                        }
+                        setAlloc(aggregated)
+                      }
+                    }
+                  })
+                  .catch(() => {})
+                  .finally(() => setAllocationLoading(false))
+              }}
+              disabled={allocationLoading}
+            >
+              {allocationLoading ? 'Loading...' : 'Ask advisor'}
+            </button>
           </div>
           {pieData.length > 0 ? (
             <div className="portfolio-pie-wrap">
@@ -250,25 +400,43 @@ export default function Portfolio() {
                 />
                 <div className="portfolio-lever-stats">
                   <span className="portfolio-lever-pct">{alloc[row.key]}%</span>
-                  <span className="portfolio-lever-amt">${((alloc[row.key] / 100) * INCOME).toFixed(2)}</span>
+                  <span className="portfolio-lever-amt">${((alloc[row.key] / 100) * (income ?? 10000)).toFixed(2)}</span>
                 </div>
               </div>
             ))}
             <div className="portfolio-allocation-summary">
               <span>Total: {Object.values(alloc).reduce((a, b) => a + b, 0)}%</span>
-              <span>Income: ${INCOME.toFixed(2)}</span>
+              <span>Income: ${(income ?? 10000).toFixed(2)}</span>
             </div>
           </div>
         </div>
 
         {/* --- TOP RIGHT: Investment Summary + Chart Q&A --- */}
         <div className="portfolio-top-right">
+          {/* Spending suggestions (from LLM) */}
+          {spendingSuggestions.length > 0 && (
+            <div className="card portfolio-spending-card">
+              <h2 className="section-title">Spending suggestions</h2>
+              <ul className="portfolio-savings-list">
+                {spendingSuggestions.slice(0, 4).map((s, i) => (
+                  <li key={i} className="portfolio-savings-item">
+                    <span className="portfolio-suggestion-cat">{s.category}</span>
+                    <p className="text-muted" style={{ margin: '0.25rem 0 0', fontSize: '0.9rem' }}>{s.message}</p>
+                    {s.save_amount > 0 && (
+                      <span className="portfolio-save-amt">Save ~${s.save_amount.toFixed(0)}/mo</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {/* Investment Summary */}
           <div className="card portfolio-investment-card">
             <h2 className="section-title">Investment Summary</h2>
             {(() => {
               const investPct = INVEST_PCT_BY_MODE[risk] || 0
-              const invested = INCOME * investPct
+              const invested = (income ?? 10000) * investPct
               const returns = invested * weightedRate
               const projected = invested + returns
               return (
@@ -326,8 +494,8 @@ export default function Portfolio() {
           </div>
         </div>
       </div>
-
-      {/* Bottom section removed; Q&A moved under Investment Summary */}
+      </div>
+      </div>
     </div>
   )
 }
