@@ -5,7 +5,6 @@ import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import Onboarding from './pages/Onboarding'
-import Bills from './pages/Bills'
 import Calendar from './pages/Calendar'
 import Money from './pages/Money'
 import Risk from './pages/Risk'
@@ -42,7 +41,7 @@ export default function App() {
         <Route path="/" element={user ? <Layout user={user} onLogout={() => setUser(null)} /> : <Navigate to="/login" />}>
           <Route index element={needsOnboarding ? <Navigate to="/onboarding" replace /> : <Dashboard user={user} />} />
           <Route path="onboarding" element={<Onboarding user={user} onComplete={refreshUser} />} />
-          <Route path="bills" element={<Bills />} />
+          <Route path="bills" element={<Calendar />} />
           <Route path="calendar" element={<Calendar />} />
           <Route path="money" element={<Money />} />
           <Route path="risk" element={<Risk />} />
