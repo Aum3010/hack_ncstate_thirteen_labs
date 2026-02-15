@@ -1,14 +1,15 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { logout } from '../api/auth'
 import { listBills, markPaid } from '../api/bills'
 import { listWallets, syncWallet } from '../api/wallets'
 import AssistantFab from './AssistantFab'
+import ChatBar from './ChatBar'
+import ProfileModal from './ProfileModal'
+import UrbanNoirSharedBackdrop from './UrbanNoir/UrbanNoirSharedBackdrop'
 import './Layout.css'
-// import UrbanNoirSharedBackdrop from './UrbanNoir/UrbanNoirSharedBackdrop'
-import noirBackdrop from '../../media/glamorous-skyline-12160696.webp'
 
-export default function Layout({ user, onLogout }) {
+export default function Layout({ user, onLogout, onUpdate }) {
   const navigate = useNavigate()
   const location = useLocation()
   const [notifOpen, setNotifOpen] = useState(false)
@@ -18,11 +19,7 @@ export default function Layout({ user, onLogout }) {
   const [highlightAlertId, setHighlightAlertId] = useState(null)
   const [primaryWalletId, setPrimaryWalletId] = useState(null)
   const syncingRef = useRef(false)
-
-  // Urban Noir background state
-  const canvasRef = useRef(null)
-  const [scrollY, setScrollY] = useState(0)
-  const [viewport, setViewport] = useState({ w: 0, h: 0 })
+  const [profileModalOpen, setProfileModalOpen] = useState(false)
 
   const handleLogout = async () => {
     await logout()
@@ -32,13 +29,6 @@ export default function Layout({ user, onLogout }) {
   }
 
   useEffect(() => {
-    // Background viewport tracking
-    const onResize = () => setViewport({ w: window.innerWidth, h: window.innerHeight })
-    onResize()
-    window.addEventListener('resize', onResize)
-    const onScroll = () => setScrollY(window.scrollY || window.pageYOffset || 0)
-    window.addEventListener('scroll', onScroll, { passive: true })
-
     const today = new Date()
     const clampDay = (d) => Math.min(parseInt(d, 10) || 1, 28)
     const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate())
@@ -98,10 +88,6 @@ export default function Layout({ user, onLogout }) {
       })
       .catch(() => setDueAlerts([]))
       .finally(() => setNotifLoading(false))
-    return () => {
-      window.removeEventListener('resize', onResize)
-      window.removeEventListener('scroll', onScroll)
-    }
   }, [])
 
   // Locate the user's primary wallet once (if any)
@@ -117,64 +103,6 @@ export default function Layout({ user, onLogout }) {
     }
     loadWallet()
     return () => { cancelled = true }
-  }, [])
-
-  // Twinkling starfield
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    let rafId = 0
-    let stars = []
-    const init = () => {
-      canvas.width = window.innerWidth
-      canvas.height = window.innerHeight
-      const count = Math.floor((canvas.width * canvas.height) / 15000)
-      stars = new Array(count).fill(0).map(() => ({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        r: Math.random() * 1.6 + 0.2,
-        tw: Math.random() * Math.PI * 2,
-        s: 0.6 + Math.random() * 1.2,
-      }))
-    }
-    const loop = (t) => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-      for (const st of stars) {
-        const alpha = 0.6 + 0.4 * Math.sin(st.tw + t * 0.001 * st.s)
-        ctx.beginPath()
-        ctx.arc(st.x, st.y - scrollY * 0.08, st.r, 0, Math.PI * 2)
-        ctx.fillStyle = `rgba(255,255,255,${alpha})`
-        ctx.fill()
-      }
-      rafId = requestAnimationFrame(loop)
-    }
-    init()
-    rafId = requestAnimationFrame(loop)
-    const onResize = () => init()
-    window.addEventListener('resize', onResize)
-    return () => {
-      cancelAnimationFrame(rafId)
-      window.removeEventListener('resize', onResize)
-    }
-  }, [scrollY])
-
-  // Skyline layers
-  const layers = useMemo(() => {
-    const L = [
-      { key: 'back', parallax: 0.18, scale: 0.9, count: 10 },
-      { key: 'mid', parallax: 0.35, scale: 1.0, count: 12 },
-      { key: 'front', parallax: 0.55, scale: 1.15, count: 8 },
-    ]
-    const makeBuildings = (count, scale) =>
-      Array.from({ length: count }).map(() => ({
-        h: 140 + Math.random() * 300 * scale,
-        w: 48 + Math.random() * 70 * scale,
-        x: Math.random() * 92,
-        neon: Math.random() < 0.28,
-        flickerDelay: `${Math.floor(Math.random() * 4000)}ms`,
-      }))
-    return L.map((l) => ({ ...l, buildings: makeBuildings(l.count, l.scale) }))
   }, [])
 
   // Auto-sync Solana wallet every 10 seconds, preventing overlapping runs
@@ -263,51 +191,24 @@ export default function Layout({ user, onLogout }) {
   }, [location.search])
 
   const nav = [
-    { to: '/', label: 'Dashboard' },
+    { to: '/', label: 'Home', end: true },
     { to: '/portfolio', label: 'Investments' },
     { to: '/calendar', label: 'Bill payments' },
     { to: '/experiences', label: 'Experiences' },
-    
   ]
 
+  const isPortfolio = location.pathname === '/portfolio'
+
   return (
-    <div className="layout" style={{ '--vh': `${viewport.h}px` }}>
-      {/* Urban Noir background layers (non-interactive) */}
-      <canvas ref={canvasRef} className="noir-stars" />
-      <div className="noir-backdrop" style={{ backgroundImage: `url(${noirBackdrop})`, transform: `translateY(${-(scrollY * 0.12)}px)` }} />
-      {/* Plane animation (inline SVG silhouette) */}
-      <div className="noir-plane-wrap" style={{ transform: `translateY(${-(scrollY * 0.05)}px)` }}>
-        <div className="noir-plane" aria-hidden>
-          <svg viewBox="0 0 200 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Plane">
-            <g fill="#d9e6ff">
-              <path d="M10 55 L70 45 L120 50 L170 40 L190 42 L175 52 L120 60 L70 55 Z" />
-              <rect x="70" y="45" width="12" height="10" fill="#bcd3ff" />
-              <path d="M85 48 L105 42 L110 44 L90 52 Z" fill="#bcd3ff" />
-            </g>
-          </svg>
-        </div>
-      </div>
-      {layers.map((layer) => (
-        <div
-          key={layer.key}
-          className={`skyline-layer skyline-${layer.key}`}
-          style={{ transform: `translateY(${-(scrollY * layer.parallax)}px)` }}
-        >
-          {layer.buildings.map((b, idx) => (
-            <div key={idx} className="building" style={{ left: `${b.x}%`, height: `${b.h}px`, width: `${b.w}px` }}>
-              <div className="face front" />
-              <div className="face side" />
-              <div className="windows" style={{ animationDelay: b.flickerDelay }} />
-              {b.neon && <div className="neon-sign">NOIR</div>}
-            </div>
-          ))}
-        </div>
-      ))}
+    <div className="layout">
+      {!isPortfolio && <UrbanNoirSharedBackdrop />}
       <header className="layout-header">
-        <div className="layout-brand">Nightshade</div>
+        <NavLink to="/" className="layout-brand">
+          Nightshade
+        </NavLink>
         <nav className="layout-nav">
-          {nav.map(({ to, label }) => (
-            <NavLink key={to} to={to} className={({ isActive }) => 'layout-nav-link' + (isActive ? ' active' : '')}>
+          {nav.map(({ to, label, end }) => (
+            <NavLink key={to} to={to} end={end} className={({ isActive }) => 'layout-nav-link' + (isActive ? ' active' : '')}>
               {label}
             </NavLink>
           ))}
@@ -333,10 +234,8 @@ export default function Layout({ user, onLogout }) {
                     className="btn btn-primary"
                     onClick={() => {
                       setShowToast(false)
-                      // Target the most imminent bill
                       const target = dueAlerts.length > 0 ? dueAlerts[0].id : null
                       if (target) setHighlightAlertId(target)
-                      // Open dropdown to show due bills without redirecting
                       setNotifOpen(true)
                     }}
                   >
@@ -377,7 +276,6 @@ export default function Layout({ user, onLogout }) {
                           className="btn btn-primary"
                           onClick={async () => {
                             await markPaid(a.id, true)
-                            // Notify other views (e.g., Calendar) to update immediately
                             try { window.dispatchEvent(new CustomEvent('billPaid', { detail: { id: a.id, paid: true } })) } catch {}
                             setDueAlerts((prev) => prev.filter((x) => x.id !== a.id))
                           }}
@@ -392,15 +290,29 @@ export default function Layout({ user, onLogout }) {
             )}
           </div>
           <span className="layout-user-email">{user?.email || user?.username || 'User'}</span>
+          <button
+            type="button"
+            className="layout-hamburger btn btn-ghost"
+            onClick={() => setProfileModalOpen(true)}
+            aria-label="Open profile and settings"
+          >
+            ☰
+          </button>
           <button type="button" className="btn btn-ghost" onClick={handleLogout}>
             Log out
           </button>
         </div>
       </header>
-      <main className="layout-main">
+      <main className={'layout-main' + (isPortfolio ? ' is-portfolio' : '')}>
         <Outlet />
       </main>
-      <AssistantFab />
+      <ProfileModal
+        open={profileModalOpen}
+        onClose={() => setProfileModalOpen(false)}
+        user={user}
+        onUpdate={onUpdate}
+      />
+      <ChatBar />
     </div>
   )
 }
