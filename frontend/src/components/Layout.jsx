@@ -16,8 +16,7 @@ export default function Layout({ user, onLogout }) {
   const nav = [
     { to: '/', label: 'Dashboard' },
     { to: '/money', label: 'Money & Crypto' },
-    { to: '/bills', label: 'Bill Payments' },
-    { to: '/calendar', label: 'Calendar' },
+    { to: '/calendar', label: 'Calendar & Bills' },
     { to: '/risk', label: 'Risk' },
   ]
 

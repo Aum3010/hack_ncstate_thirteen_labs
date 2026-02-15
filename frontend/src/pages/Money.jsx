@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react'
-import { listTransactions, createTransaction } from '../api/transactions'
+import { createTransaction } from '../api/transactions'
 import { listWallets, syncWallet } from '../api/wallets'
 import { uploadDocument, listDocuments } from '../api/documents'
 import WalletConnect from '../components/WalletConnect'
 import './Money.css'
 
 export default function Money() {
-  const [transactions, setTransactions] = useState([])
   const [wallets, setWallets] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -17,9 +16,8 @@ export default function Money() {
   const [error, setError] = useState('')
 
   const load = () => {
-    Promise.all([listTransactions(), listWallets(), listDocuments()])
-      .then(([t, w, d]) => {
-        setTransactions(t)
+    Promise.all([listWallets(), listDocuments()])
+      .then(([w, d]) => {
         setWallets(w)
         setDocuments(d)
       })
@@ -131,22 +129,6 @@ export default function Money() {
               <button type="button" className="btn btn-ghost" onClick={() => setShowForm(false)}>Cancel</button>
             </div>
           </form>
-        )}
-      </section>
-      <section className="card money-section">
-        <h2 className="section-title">Transactions</h2>
-        {transactions.length === 0 ? (
-          <p className="text-muted">No transactions. Add one or use the assistant.</p>
-        ) : (
-          <ul className="tx-list">
-            {transactions.map((t) => (
-              <li key={t.id} className="tx-item">
-                <span className="tx-category">{t.category || 'Uncategorized'}</span>
-                <span className="tx-desc">{t.description || '—'}</span>
-                <span className="tx-amount">${(t.amount_cents / 100).toFixed(2)}</span>
-              </li>
-            ))}
-          </ul>
         )}
       </section>
     </div>

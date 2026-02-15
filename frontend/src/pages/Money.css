@@ -22,10 +22,14 @@
 
 .tx-item {
   display: grid;
-  grid-template-columns: 120px 1fr auto;
+  grid-template-columns: 140px 120px 1fr auto;
   gap: 1rem;
   padding: 0.6rem 0;
   border-bottom: 1px solid var(--border);
+}
+.tx-date {
+  color: var(--text-muted);
+  font-size: 0.9rem;
 }
 .tx-item:last-child {
   border-bottom: none;
@@ -43,6 +47,11 @@
 
 .tx-amount {
   font-family: var(--font-mono);
+}
+.tx-amount.income {
+  color: var(--neon-green);
+}
+.tx-amount.spend {
   color: var(--neon-pink);
 }
 
