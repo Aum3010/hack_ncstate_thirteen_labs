@@ -73,12 +73,15 @@ export async function getSpendingAnalysis() {
   return res.json()
 }
 
-export async function portfolioChat(message, mode) {
+export async function portfolioChat(messageOrPayload, mode, messages = null) {
+  const payload = typeof messageOrPayload === 'object' && messageOrPayload !== null
+    ? messageOrPayload
+    : { message: messageOrPayload, mode, messages }
   const res = await fetch(`${API}/api/assistant/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     ...credentials(),
-    body: JSON.stringify({ message, mode }),
+    body: JSON.stringify(payload),
   })
   if (!res.ok) throw new Error('Chat failed')
   return res.json()

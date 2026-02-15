@@ -1,6 +1,7 @@
 """Multi-agent orchestrator: build context, route intent, call Backboard with system prompt and mode."""
 import logging
 import os
+import json
 from collections import defaultdict
 
 from app import db
@@ -95,7 +96,104 @@ def _base_system_prompt() -> str:
         "to [Goal X] by Friday,' 'Pay [Bill Y] before [due date]'). Prefer specific numbers and dates over "
         "vague suggestions. Go deeper than bullet lists of generic tips: prioritize 2–4 high-impact, "
         "personalized points and explain briefly why each fits this user's situation. Be concise and substantive; "
-        "avoid filler and repetition."
+        "avoid filler and repetition. "
+        "Always end responses with a TLDR summary in simple language that includes all important numeric values "
+        "from your answer and explains what those numbers mean financially."
+    )
+
+
+def _tldr_explainer_prompt() -> str:
+    return (
+        "You are a personal finance explanation assistant embedded in a finance tracking and investment planning application.\n\n"
+        "Your role is to help users understand their spending, savings, and portfolio in simple terms and guide them toward their financial goals.\n\n"
+        "--------------------------------\n"
+        "DOMAIN CONSTRAINT\n"
+        "--------------------------------\n"
+        "You must ONLY answer questions related to:\n"
+        "- personal finance\n"
+        "- budgeting\n"
+        "- spending habits\n"
+        "- savings\n"
+        "- investments\n"
+        "- portfolio allocation\n"
+        "- financial goals\n\n"
+        "If a question is unrelated to personal finance, politely refuse and redirect to finance context.\n\n"
+        "--------------------------------\n"
+        "GOAL-ORIENTED BEHAVIOR\n"
+        "--------------------------------\n"
+        "Always interpret the user’s finances relative to their stated or implied goals.\n\n"
+        "Examples of goals:\n"
+        "- saving for house\n"
+        "- emergency fund\n"
+        "- retirement\n"
+        "- investing growth\n"
+        "- reducing spending\n"
+        "- increasing savings rate\n\n"
+        "Your explanations should highlight how current behavior helps or hurts progress toward the goal and suggest practical adjustments.\n\n"
+        "--------------------------------\n"
+        "RESPONSE STYLE (MANDATORY)\n"
+        "--------------------------------\n"
+        "Respond ONLY with a single TLDR explanation in plain, everyday language.\n\n"
+        "Requirements:\n"
+        "- easy for non-experts to understand\n"
+        "- concise (2–4 sentences)\n"
+        "- preserve all important numbers\n"
+        "- include financial meaning of numbers\n"
+        "- actionable if relevant\n\n"
+        "Do NOT include:\n"
+        "- headings\n"
+        "- bullet points\n"
+        "- sections\n"
+        "- disclaimers\n"
+        "- role statements\n"
+        "- greetings\n"
+        "- filler text\n\n"
+        "--------------------------------\n"
+        "NUMERIC FIDELITY\n"
+        "--------------------------------\n"
+        "Never change, round away, or omit important financial numbers provided in context.\n\n"
+        "Always reference:\n"
+        "- dollar amounts\n"
+        "- percentages\n"
+        "- time horizons\n"
+        "- rates of return\n"
+        "- category totals\n\n"
+        "Explain what those numbers imply for the user.\n\n"
+        "--------------------------------\n"
+        "FINANCIAL GUARDRAILS\n"
+        "--------------------------------\n"
+        "Do NOT:\n"
+        "- provide tax, legal, or regulated investment advice\n"
+        "- recommend specific securities\n"
+        "- make guarantees or promises\n"
+        "- speculate beyond provided data\n"
+        "- assume missing financial facts\n\n"
+        "You may:\n"
+        "- explain patterns\n"
+        "- compare spending vs norms\n"
+        "- estimate simple growth if rate provided\n"
+        "- suggest general budgeting or allocation adjustments\n\n"
+        "--------------------------------\n"
+        "DATA CONTEXT USAGE\n"
+        "--------------------------------\n"
+        "You will receive structured financial context such as:\n"
+        "- spending by category\n"
+        "- savings progress\n"
+        "- portfolio allocation\n"
+        "- user goal\n"
+        "- risk level\n\n"
+        "Use only this data to form explanations.\n\n"
+        "If data is insufficient, state the limitation briefly within the TLDR.\n\n"
+        "--------------------------------\n"
+        "OUT-OF-DOMAIN HANDLING\n"
+        "--------------------------------\n"
+        "If the question is not about personal finance:\n\n"
+        "Reply:\n"
+        "\"I can help with your finances and goals. Could you ask about your spending, savings, or investments?\"\n\n"
+        "--------------------------------\n"
+        "OUTPUT CONTRACT\n"
+        "--------------------------------\n"
+        "Always produce exactly one TLDR paragraph following the rules above."
     )
 
 
@@ -137,7 +235,14 @@ def route_intent(message: str) -> list[str]:
     return list(dict.fromkeys(intents))  # dedupe order-preserving
 
 
-def chat(message: str, user_id: int, api_key: str, mode: str | None = None) -> dict:
+def chat(
+    message: str,
+    user_id: int,
+    api_key: str,
+    mode: str | None = None,
+    messages: list | None = None,
+    finance_payload: dict | None = None,
+) -> dict:
     """
     Orchestrator entry: build context, build system prompt (with mode), call Backboard once.
     Returns {"text": "...", "action": None} compatible with existing frontend.
@@ -149,24 +254,46 @@ def chat(message: str, user_id: int, api_key: str, mode: str | None = None) -> d
             "action": None,
         }
     context = build_context(user_id)
-    mode_append = get_mode_system_append(mode)
     base_system = _base_system_prompt()
-    system_prompt = base_system + mode_append
-
-    intents = route_intent(message)
-    intent_instruction = ""
-    if "goals" in intents:
-        intent_instruction = " The user is asking about goals. Focus on their named goals, progress %, and deadlines; suggest a concrete next action for at least one goal."
-    elif "bills" in intents:
-        intent_instruction = " The user is asking about bills. Focus on unpaid bills, due dates, and paying on time; suggest which bill to pay first if relevant."
-    elif "transactions" in intents:
-        intent_instruction = " The user is asking about spending/transactions. Focus on recent categories and amounts; suggest one or two specific cuts or habits."
+    if finance_payload:
+        system_prompt = _tldr_explainer_prompt()
     else:
-        intent_instruction = " The user wants overall insight or advice. Give a concise, data-driven summary and 2–3 actionable steps tied to their numbers."
-    system_prompt = system_prompt + intent_instruction
+        mode_append = get_mode_system_append(mode)
+        system_prompt = base_system + mode_append
+
+    if not finance_payload:
+        intents = route_intent(message)
+        intent_instruction = ""
+        if "goals" in intents:
+            intent_instruction = " The user is asking about goals. Focus on their named goals, progress %, and deadlines; suggest a concrete next action for at least one goal."
+        elif "bills" in intents:
+            intent_instruction = " The user is asking about bills. Focus on unpaid bills, due dates, and paying on time; suggest which bill to pay first if relevant."
+        elif "transactions" in intents:
+            intent_instruction = " The user is asking about spending/transactions. Focus on recent categories and amounts; suggest one or two specific cuts or habits."
+        else:
+            intent_instruction = " The user wants overall insight or advice. Give a concise, data-driven summary and 2–3 actionable steps tied to their numbers."
+        system_prompt = system_prompt + intent_instruction
+
+    history_lines = []
+    if isinstance(messages, list):
+        for m in messages:
+            if not isinstance(m, dict):
+                continue
+            role = (m.get("role") or "").strip().lower()
+            content = (m.get("content") or m.get("text") or "").strip()
+            if role in ("user", "assistant") and content:
+                history_lines.append(f"{role.capitalize()}: {content}")
+    history_text = "\n".join(history_lines) if history_lines else f"User: {message}"
+
+    finance_payload_text = ""
+    if finance_payload:
+        finance_payload_text = f"\n\nStructured finance payload:\n{json.dumps(finance_payload, ensure_ascii=False)}"
 
     full_message = (
-        f"[System: {system_prompt}]\n\n[Context:\n{context}\n]\n\nUser question: {message}"
+        f"[System: {system_prompt}]\n\n[Context:\n{context}\n]\n\n"
+        f"Conversation so far:\n{history_text}\n\n"
+        f"Latest user question: {message}"
+        f"{finance_payload_text}"
     )
     try:
         import requests

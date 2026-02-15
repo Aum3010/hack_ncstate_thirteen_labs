@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts'
 import { portfolioChat } from '../api/portfolio'
 import { listGoals } from '../api/goals'
+import { listTransactions } from '../api/transactions'
 import './Portfolio.css'
 
 const RISK_OPTIONS = [
@@ -53,7 +54,6 @@ export default function Portfolio() {
   const [messages, setMessages] = useState([])
   const [chatInput, setChatInput] = useState('')
   const [chatLoading, setChatLoading] = useState(false)
-  const [explainedOnce, setExplainedOnce] = useState(false)
 
   // No spending analysis fetch
 
@@ -124,51 +124,48 @@ export default function Portfolio() {
   const sendChat = async () => {
     const msg = chatInput.trim()
     if (!msg) return
-    const userMsg = { role: 'user', text: msg }
-    setMessages((prev) => [...prev, userMsg])
+    const userMessage = { role: 'user', content: msg }
+    const nextMessages = [...messages, userMessage]
+    setMessages(nextMessages)
     setChatInput('')
     setChatLoading(true)
     try {
-      const data = await portfolioChat(msg, risk)
-      setMessages((prev) => [...prev, { role: 'assistant', text: data.text || 'No response.' }])
+      const [txData, goals] = await Promise.all([
+        listTransactions({ limit: 200 }),
+        listGoals().catch(() => []),
+      ])
+      const transactions = txData?.transactions || []
+      const spendingByCategory = {}
+      for (const transaction of transactions) {
+        const cents = Number(transaction.amount_cents || 0)
+        if (cents <= 0) continue
+        const category = transaction.category || 'other'
+        spendingByCategory[category] = (spendingByCategory[category] || 0) + cents
+      }
+
+      const payload = {
+        messages: nextMessages,
+        question: msg,
+        risk,
+        portfolio: {
+          risk,
+          allocation: pieData.map((item) => ({ category: item.name, percentage: item.value })),
+        },
+        spending: Object.entries(spendingByCategory).map(([category, amountCents]) => ({
+          category,
+          amount_cents: amountCents,
+        })),
+        savings: goals,
+      }
+
+      const data = await portfolioChat(payload)
+      setMessages((prev) => [...prev, { role: 'assistant', content: data.text || 'No response.' }])
     } catch (err) {
-      setMessages((prev) => [...prev, { role: 'assistant', text: 'Error: ' + err.message }])
+      setMessages((prev) => [...prev, { role: 'assistant', content: 'Error: ' + err.message }])
     } finally {
       setChatLoading(false)
     }
   }
-
-  const explainChart = async () => {
-    const lines = [
-      `Mode: ${risk}`,
-      `Income: $${INCOME.toFixed(2)}`,
-      `Allocations:`,
-      `- Stocks: ${alloc.stocks}%`,
-      `- Roth IRA: ${alloc.roth}%`,
-      `- 401K: ${alloc._401k}%`,
-      `- HYSA: ${alloc.hysa}%`,
-      `- Gold Bond: ${alloc.gold}%`,
-      `Weighted 1y yield estimate: ${(weightedRate * 100).toFixed(2)}%`,
-    ]
-    const prompt = `Please explain the user's portfolio pie chart based on the following details and provide concise guidance on diversification and risk for a ${risk} investor. Keep it under 150 words.\n\n${lines.join('\n')}`
-    setChatLoading(true)
-    try {
-      const data = await portfolioChat(prompt, risk)
-      setMessages((prev) => [...prev, { role: 'assistant', text: data.text || 'No response.' }])
-      setExplainedOnce(true)
-    } catch (err) {
-      setMessages((prev) => [...prev, { role: 'assistant', text: 'Error: ' + err.message }])
-    } finally {
-      setChatLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    if (!explainedOnce && pieData.length > 0) {
-      explainChart()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [risk, alloc])
 
   // --- Savings progress removed; page focused on investment summary ---
 
@@ -199,16 +196,17 @@ export default function Portfolio() {
             <select
               className="input portfolio-risk-select"
               value={risk}
-              onChange={(e) => setRisk(e.target.value)}
+              onChange={(e) => {
+                const nextRisk = e.target.value
+                setRisk(nextRisk)
+                applyPreset(nextRisk)
+              }}
               aria-label="Risk tolerance"
             >
               {RISK_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
-            <button type="button" className="btn btn-primary" onClick={() => applyPreset(risk)}>
-              Apply Preset
-            </button>
           </div>
           {pieData.length > 0 ? (
             <div className="portfolio-pie-wrap">
@@ -297,13 +295,13 @@ export default function Portfolio() {
           <div className="card portfolio-explain-card">
             <h2 className="section-title">Chart Explanation & Q&A</h2>
             <div className="portfolio-chat-messages">
-              {messages.length === 0 && (
-                <p className="text-muted portfolio-chat-empty">Generating overview of your allocation...</p>
+              {messages.length === 0 && !chatLoading && (
+                <p className="text-muted portfolio-chat-empty">Ask about your spending, savings, or portfolio goals.</p>
               )}
               {messages.map((m, i) => (
                 <div key={i} className={`portfolio-chat-msg portfolio-chat-${m.role}`}>
                   <span className="portfolio-chat-role">{m.role === 'user' ? 'You' : 'Advisor'}</span>
-                  <p className="portfolio-chat-text">{m.text}</p>
+                  <p className="portfolio-chat-text">{m.content}</p>
                 </div>
               ))}
               {chatLoading && (
@@ -321,9 +319,6 @@ export default function Portfolio() {
                 onChange={(e) => setChatInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && sendChat()}
               />
-              <button type="button" className="btn btn-secondary" onClick={explainChart} disabled={chatLoading}>
-                Explain Chart
-              </button>
               <button type="button" className="btn btn-primary" onClick={sendChat} disabled={chatLoading || !chatInput.trim()}>
                 {chatLoading ? '...' : 'Send'}
               </button>

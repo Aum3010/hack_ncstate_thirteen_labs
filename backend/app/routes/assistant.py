@@ -14,15 +14,27 @@ def chat():
     if not uid:
         return jsonify({"error": "Not authenticated"}), 401
     data = request.get_json() or {}
-    message = (data.get("message") or data.get("text") or "").strip()
+    message = (data.get("message") or data.get("text") or data.get("question") or "").strip()
     if not message:
         return jsonify({"error": "message required"}), 400
-    mode = (data.get("mode") or "").strip() or None
+    messages = data.get("messages")
+    if not isinstance(messages, list):
+        messages = None
+    finance_payload = {
+        "question": (data.get("question") or "").strip() or message,
+        "portfolio": data.get("portfolio"),
+        "spending": data.get("spending"),
+        "savings": data.get("savings"),
+        "risk": (data.get("risk") or "").strip() or None,
+    }
+    if not any(finance_payload.get(k) for k in ("portfolio", "spending", "savings")):
+        finance_payload = None
+    mode = (data.get("mode") or data.get("risk") or "").strip() or None
     if not mode:
         user = User.query.get(uid)
         mode = (user.assistant_mode or "balanced") if user else "balanced"
     api_key = os.environ.get("BACKBOARD_API_KEY", "")
-    out = orchestrator_chat(message, uid, api_key, mode=mode)
+    out = orchestrator_chat(message, uid, api_key, mode=mode, messages=messages, finance_payload=finance_payload)
     return jsonify(out)
 
 
