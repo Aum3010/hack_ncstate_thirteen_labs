@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 import './ChatBar.css'
 
-const API = import.meta.env.VITE_API_URL || ''
+import { API } from '../api/config'
 const MODES = [
   { value: 'conservative', label: 'Conservative' },
   { value: 'balanced', label: 'Balanced' },

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import './AssistantFab.css'
 
-const API = import.meta.env.VITE_API_URL || ''
+import { API } from '../api/config'
 const MODES = [
   { value: 'conservative', label: 'Conservative' },
   { value: 'balanced', label: 'Balanced' },

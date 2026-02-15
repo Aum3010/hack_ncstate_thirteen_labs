@@ -1,4 +1,4 @@
-const API = import.meta.env.VITE_API_URL || ''
+import { API } from './config'
 
 export async function getReminders(days = 7) {
   const res = await fetch(`${API}/api/bills/reminders?days=${days}`, { credentials: 'include' })
