@@ -37,6 +37,7 @@
   padding: 1rem 1.5rem;
   border: 1px solid var(--hud-border-pink);
   box-shadow: var(--hud-glow-pink);
+  text-align: center;
 }
 
 .portfolio-urban-title {
@@ -123,6 +124,40 @@
 .portfolio-risk-select {
   flex: 1;
   min-width: 0;
+}
+
+.portfolio-financial-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+
+.portfolio-financial-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.portfolio-financial-label {
+  font-size: 0.8rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+.portfolio-financial-preview {
+  font-size: 0.8rem;
+  font-family: var(--font-mono);
+  color: var(--text);
+}
+
+.portfolio-plan-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.25rem 0.75rem;
+  font-size: 0.82rem;
+  font-family: var(--font-mono);
+  color: var(--text);
 }
 
 /* --- Pie chart --- */

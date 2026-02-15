@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts'
 import { getProfile } from '../api/users'
-import { portfolioChat, getPortfolioAllocation, getSpendingAnalysis } from '../api/portfolio'
+import { portfolioChat, getSpendingAnalysis } from '../api/portfolio'
 import { listGoals } from '../api/goals'
 import { listTransactions } from '../api/transactions'
 import useVoiceAssistant from '../hooks/useVoiceAssistant'
@@ -13,6 +13,14 @@ const RISK_OPTIONS = [
   { value: 'aggressive', label: 'Aggressive' },
 ]
 
+const ANNUAL_RETURN_BY_RISK = {
+  conservative: 0.08,
+  balanced: 0.10,
+  aggressive: 0.12,
+}
+
+const MAX_FINANCIAL_INPUT = 10000000
+
 /** Map LLM category name to our 5-bucket key */
 function mapCategoryToBucket(name) {
   const n = (name || '').toLowerCase()
@@ -23,29 +31,17 @@ function mapCategoryToBucket(name) {
   return 'stocks'
 }
 
-function normalizeAllocationFromCategories(categories) {
-  if (!Array.isArray(categories) || categories.length === 0) return null
-  const aggregated = { stocks: 0, roth: 0, _401k: 0, hysa: 0, gold: 0 }
+function calculateFutureValue(amount, rate, years) {
+  if (!amount || amount <= 0) return 0
+  return amount * ((1 + rate) ** years)
+}
 
-  for (const category of categories) {
-    const key = mapCategoryToBucket(category.name)
-    const percentage = Math.round(Number(category.percentage) || 0)
-    if (aggregated[key] !== undefined) aggregated[key] += percentage
-  }
-
-  const total = Object.values(aggregated).reduce((sum, value) => sum + value, 0)
-  if (total <= 0) return null
-
-  let remainder = 100 - total
-  const keys = Object.keys(aggregated)
-  for (let i = 0; i < keys.length && remainder !== 0; i++) {
-    const key = keys[i]
-    const delta = remainder > 0 ? 1 : -1
-    aggregated[key] = Math.max(0, Math.min(100, aggregated[key] + delta))
-    remainder -= delta
-  }
-
-  return aggregated
+function formatCurrency(value) {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 2,
+  }).format(value || 0)
 }
 
 export default function Portfolio() {
@@ -57,36 +53,17 @@ export default function Portfolio() {
     hysa: '#f59e0b',
     gold: '#d97706',
   }
-  const RISKS = {
-    stocks: 85,
-    roth: 60,
-    _401k: 50,
-    hysa: 10,
-    gold: 25,
-  }
-  const YIELD_BY_MODE = {
-    conservative: { stocks: 0.06, roth: 0.05, _401k: 0.05, hysa: 0.04, gold: 0.025 },
-    balanced: { stocks: 0.08, roth: 0.06, _401k: 0.06, hysa: 0.045, gold: 0.03 },
-    aggressive: { stocks: 0.10, roth: 0.07, _401k: 0.07, hysa: 0.045, gold: 0.035 },
-  }
-  const INVEST_PCT_BY_MODE = {
-    conservative: 0.20,
-    balanced: 0.30,
-    aggressive: 0.40,
-  }
   const PRESETS = {
-    conservative: { stocks: 10, roth: 20, _401k: 30, hysa: 25, gold: 15 },
-    balanced: { stocks: 25, roth: 20, _401k: 25, hysa: 15, gold: 15 },
-    aggressive: { stocks: 40, roth: 25, _401k: 20, hysa: 5, gold: 10 },
+    conservative: { stocks: 30, roth: 20, _401k: 15, hysa: 25, gold: 10 },
+    balanced: { stocks: 50, roth: 20, _401k: 15, hysa: 10, gold: 5 },
+    aggressive: { stocks: 70, roth: 15, _401k: 10, hysa: 3, gold: 2 },
   }
 
   const [risk, setRisk] = useState('balanced')
-  const [hasLongTermGoal, setHasLongTermGoal] = useState(false)
   const [alloc, setAlloc] = useState(PRESETS.balanced)
-  const [profileGoal, setProfileGoal] = useState('')
-  const [income, setIncome] = useState(null) // from profile, transactions, or 10000 fallback
+  const [investmentAmount, setInvestmentAmount] = useState('')
+  const [investmentError, setInvestmentError] = useState('')
   const [spendingSuggestions, setSpendingSuggestions] = useState([])
-  const [allocationLoading, setAllocationLoading] = useState(false)
 
   // --- Chat state (bottom) ---
   const [messages, setMessages] = useState([])
@@ -97,23 +74,6 @@ export default function Portfolio() {
   const chatMessagesRef = useRef(null)
   const { micState, assistantAudio, voiceError, toggleRecording, speakText } = useVoiceAssistant()
 
-  const fetchAdvisorAllocation = useCallback(async (goalText, selectedRisk) => {
-    const safeGoal = (goalText || 'general growth and retirement').trim() || 'general growth and retirement'
-    const safeRisk = selectedRisk || 'balanced'
-    setAllocationLoading(true)
-    try {
-      const data = await getPortfolioAllocation(safeGoal, safeRisk)
-      const normalized = normalizeAllocationFromCategories(data?.categories)
-      if (!normalized) return false
-      setAlloc(normalized)
-      return true
-    } catch {
-      return false
-    } finally {
-      setAllocationLoading(false)
-    }
-  }, [])
-
   const handleScroll = useCallback(() => {
     const el = scrollContainerRef.current
     if (!el) return
@@ -123,9 +83,7 @@ export default function Portfolio() {
     setScrollProgress(progress)
   }, [])
 
-  // No spending analysis fetch
-
-  // --- Load profile on mount: risk_tolerance, goals, income; then fetch LLM allocation ---
+  // --- Load profile on mount: risk_tolerance and optional income seed ---
   useEffect(() => {
     const parseIncome = (val) => {
       if (val == null) return null
@@ -148,9 +106,6 @@ export default function Portfolio() {
           setAlloc(PRESETS[r] || PRESETS.balanced)
         }
 
-        const goal = (pq.long_term_goal || pq.short_term_goal || oa.main_focus || '').trim()
-        if (goal) setProfileGoal(goal)
-
         let inc = parseIncome(pq.income)
         if (inc == null) {
           const txs = txData?.transactions || []
@@ -164,32 +119,18 @@ export default function Portfolio() {
             .reduce((sum, t) => sum + (Number(t.amount_cents) || 0) / 100, 0)
           inc = derived > 0 ? Math.round(derived) : null
         }
-        setIncome(inc ?? 10000)
-
-        // Fetch advisor allocation with profile goal and risk
-        const selectedRisk = validRisk ? r : 'balanced'
-        fetchAdvisorAllocation(goal || 'general growth and retirement', selectedRisk)
-          .then((ok) => {
-            if (!ok) applyPreset(selectedRisk)
-          })
-          .catch(() => {})
+        if (!investmentAmount && inc != null && inc > 0) {
+          setInvestmentAmount(String(Math.round(inc)))
+        }
       })
       .catch(() => {})
-  }, [fetchAdvisorAllocation])
+  }, [])
 
   // --- Load spending analysis on mount ---
   useEffect(() => {
     getSpendingAnalysis()
       .then((data) => setSpendingSuggestions(data?.suggestions || []))
       .catch(() => setSpendingSuggestions([]))
-  }, [])
-
-  // --- Allocation handlers ---
-  // Load goals to check if any long-term goal exists
-  useEffect(() => {
-    listGoals()
-      .then((gs) => setHasLongTermGoal(gs.some((g) => (g.category || '').toLowerCase().includes('long'))))
-      .catch(() => setHasLongTermGoal(false))
   }, [])
 
   useEffect(() => {
@@ -199,18 +140,7 @@ export default function Portfolio() {
   }, [messages, chatLoading])
 
   const applyPreset = (mode) => {
-    const base = { ...PRESETS[mode] }
-    if (hasLongTermGoal) {
-      // Nudge toward retirement accounts when long-term goals exist
-      base.roth = Math.min(100, base.roth + 5)
-      base._401k = Math.min(100, base._401k + 5)
-      // Reduce stocks to compensate if total exceeds 100
-      const total = base.stocks + base.roth + base._401k + base.hysa + base.gold
-      if (total > 100) {
-        base.stocks = Math.max(0, base.stocks - (total - 100))
-      }
-    }
-    setAlloc(base)
+    setAlloc({ ...(PRESETS[mode] || PRESETS.balanced) })
   }
 
   const onLeverChange = (key, nextVal) => {
@@ -243,15 +173,63 @@ export default function Portfolio() {
     setAlloc(next)
   }
 
+  const parsedInvestmentAmount = useMemo(() => {
+    const n = Number(investmentAmount)
+    if (!investmentAmount || !Number.isFinite(n) || n <= 0 || n > MAX_FINANCIAL_INPUT) return 0
+    return n
+  }, [investmentAmount])
+
   const pieData = useMemo(() => {
     return [
-      { key: 'stocks', name: 'Stocks', value: alloc.stocks, fill: COLORS.stocks },
-      { key: 'roth', name: 'Roth IRA', value: alloc.roth, fill: COLORS.roth },
-      { key: '_401k', name: '401K', value: alloc._401k, fill: COLORS._401k },
-      { key: 'hysa', name: 'HYSA', value: alloc.hysa, fill: COLORS.hysa },
-      { key: 'gold', name: 'Gold Bond', value: alloc.gold, fill: COLORS.gold },
+      { key: 'stocks', name: 'Stocks', percentage: alloc.stocks, value: (parsedInvestmentAmount * (alloc.stocks || 0)) / 100, fill: COLORS.stocks },
+      { key: 'roth', name: 'Roth IRA', percentage: alloc.roth, value: (parsedInvestmentAmount * (alloc.roth || 0)) / 100, fill: COLORS.roth },
+      { key: '_401k', name: '401K', percentage: alloc._401k, value: (parsedInvestmentAmount * (alloc._401k || 0)) / 100, fill: COLORS._401k },
+      { key: 'hysa', name: 'HYSA', percentage: alloc.hysa, value: (parsedInvestmentAmount * (alloc.hysa || 0)) / 100, fill: COLORS.hysa },
+      { key: 'gold', name: 'Gold Bond', percentage: alloc.gold, value: (parsedInvestmentAmount * (alloc.gold || 0)) / 100, fill: COLORS.gold },
     ]
-  }, [alloc])
+  }, [alloc, parsedInvestmentAmount])
+
+  const chartPieData = useMemo(() => pieData.filter((item) => item.percentage > 0), [pieData])
+
+  const annualReturnRate = useMemo(() => ANNUAL_RETURN_BY_RISK[risk] || 0, [risk])
+
+  const investmentSummary = useMemo(() => {
+    const invested = parsedInvestmentAmount
+    const grossOneYear = calculateFutureValue(invested, annualReturnRate, 1)
+    const grossThreeYear = calculateFutureValue(invested, annualReturnRate, 3)
+    const grossFiveYear = calculateFutureValue(invested, annualReturnRate, 5)
+    return {
+      invested,
+      oneYear: { gross: grossOneYear, returns: grossOneYear - invested },
+      threeYear: { gross: grossThreeYear, returns: grossThreeYear - invested },
+      fiveYear: { gross: grossFiveYear, returns: grossFiveYear - invested },
+    }
+  }, [parsedInvestmentAmount, annualReturnRate])
+
+  const portfolioState = useMemo(() => ({
+    allocation: pieData.map((item) => ({ category: item.name, percentage: item.percentage, amount: item.value })),
+    investmentAmount: parsedInvestmentAmount,
+    profileMode: risk,
+  }), [pieData, parsedInvestmentAmount, risk])
+
+  const onFinancialInputChange = (setter, errorSetter) => (e) => {
+    const raw = e.target.value
+    setter(raw)
+    if (!raw) {
+      errorSetter('')
+      return
+    }
+    const value = Number(raw)
+    if (!Number.isFinite(value) || value <= 0) {
+      errorSetter('Enter a positive amount.')
+      return
+    }
+    if (value > MAX_FINANCIAL_INPUT) {
+      errorSetter(`Amount must be ${formatCurrency(MAX_FINANCIAL_INPUT)} or less.`)
+      return
+    }
+    errorSetter('')
+  }
 
   // --- Chat handlers ---
   const sendChat = async (textOverride = null) => {
@@ -279,10 +257,8 @@ export default function Portfolio() {
       const payload = {
         messages: nextMessages,
         question: msg,
-        risk,
         portfolio: {
-          risk,
-          allocation: pieData.map((item) => ({ category: item.name, percentage: item.value })),
+          ...portfolioState,
         },
         spending: Object.entries(spendingByCategory).map(([category, amountCents]) => ({
           category,
@@ -317,28 +293,15 @@ export default function Portfolio() {
     await speakText(text).catch(() => {})
   }
 
-  // --- Savings progress removed; page focused on investment summary ---
-
-  const weightedRate = useMemo(() => {
-    const y = YIELD_BY_MODE[risk]
-    if (!y) return 0
-    const parts = [
-      (alloc.stocks || 0) * (y.stocks || 0),
-      (alloc.roth || 0) * (y.roth || 0),
-      (alloc._401k || 0) * (y._401k || 0),
-      (alloc.hysa || 0) * (y.hysa || 0),
-      (alloc.gold || 0) * (y.gold || 0),
-    ]
-    return parts.reduce((a, b) => a + b, 0) / 100
-  }, [alloc, risk])
+  // --- Savings progress removed; page focused on allocation + chat ---
 
   return (
     <div className="portfolio-page portfolio-urban">
       <div className="portfolio-scroll-container">
         <div className="portfolio-hud">
           <div className="portfolio-hud-title-card card">
-            <h1 className="portfolio-urban-title">URBAN NOIR</h1>
-            <p className="portfolio-urban-subtitle">Investments – scroll to ascend above the city.</p>
+            <h1 className="portfolio-urban-title">PORTFOLIO SANDBOX</h1>
+            <p className="portfolio-urban-subtitle">Scroll to ascend above the city</p>
           </div>
 
           <div className="portfolio-top">
@@ -353,11 +316,7 @@ export default function Portfolio() {
               onChange={(e) => {
                 const nextRisk = e.target.value
                 setRisk(nextRisk)
-                fetchAdvisorAllocation(profileGoal || 'general growth and retirement', nextRisk)
-                  .then((ok) => {
-                    if (!ok) applyPreset(nextRisk)
-                  })
-                  .catch(() => applyPreset(nextRisk))
+                applyPreset(nextRisk)
               }}
               aria-label="Risk tolerance"
             >
@@ -365,27 +324,31 @@ export default function Portfolio() {
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              onClick={() => {
-                fetchAdvisorAllocation(profileGoal || 'general growth and retirement', risk)
-                  .then((ok) => {
-                    if (!ok) applyPreset(risk)
-                  })
-                  .catch(() => applyPreset(risk))
-              }}
-              disabled={allocationLoading}
-            >
-              {allocationLoading ? 'Loading...' : 'Ask advisor'}
-            </button>
           </div>
-          {pieData.length > 0 ? (
+          <div className="portfolio-financial-inputs">
+            <div className="portfolio-financial-field">
+              <label className="portfolio-financial-label" htmlFor="investment-amount-input">Investment Amount</label>
+              <input
+                id="investment-amount-input"
+                type="number"
+                min="0"
+                max={MAX_FINANCIAL_INPUT}
+                step="0.01"
+                className="input"
+                placeholder="0.00"
+                value={investmentAmount}
+                onChange={onFinancialInputChange(setInvestmentAmount, setInvestmentError)}
+              />
+              <span className="portfolio-financial-preview">{formatCurrency(parsedInvestmentAmount)}</span>
+              {investmentError ? <p className="portfolio-voice-error">{investmentError}</p> : null}
+            </div>
+          </div>
+          {chartPieData.length > 0 ? (
             <div className="portfolio-pie-wrap">
               <ResponsiveContainer width="100%" height={260}>
                 <PieChart>
                   <Pie
-                    data={pieData}
+                    data={chartPieData}
                     dataKey="value"
                     nameKey="name"
                     cx="50%"
@@ -393,13 +356,13 @@ export default function Portfolio() {
                     innerRadius={50}
                     outerRadius={90}
                     paddingAngle={2}
-                    label={({ name, value }) => `${name} ${value}%`}
+                    label={({ name, value }) => `${name} ${formatCurrency(value)}`}
                   >
-                    {pieData.map((entry) => (
+                    {chartPieData.map((entry) => (
                       <Cell key={entry.name} fill={entry.fill} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(v) => `${v}%`} />
+                  <Tooltip formatter={(v) => formatCurrency(v)} />
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>
@@ -410,7 +373,6 @@ export default function Portfolio() {
               <div key={row.key} className="portfolio-lever-row">
                 <div className="portfolio-lever-header">
                   <span className="portfolio-lever-name">{row.name}</span>
-                  <span className="portfolio-lever-risk">Risk {RISKS[row.key]}%</span>
                 </div>
                 <input
                   type="range"
@@ -421,19 +383,19 @@ export default function Portfolio() {
                   onChange={(e) => onLeverChange(row.key, Number(e.target.value))}
                 />
                 <div className="portfolio-lever-stats">
-                  <span className="portfolio-lever-pct">{alloc[row.key]}%</span>
-                  <span className="portfolio-lever-amt">${((alloc[row.key] / 100) * (income ?? 10000)).toFixed(2)}</span>
+                  <span className="portfolio-lever-pct">{row.percentage}%</span>
+                  <span className="portfolio-lever-amt">{formatCurrency(row.value)}</span>
                 </div>
               </div>
             ))}
             <div className="portfolio-allocation-summary">
               <span>Total: {Object.values(alloc).reduce((a, b) => a + b, 0)}%</span>
-              <span>Income: ${(income ?? 10000).toFixed(2)}</span>
+              <span>Investment Amount: {formatCurrency(parsedInvestmentAmount)}</span>
             </div>
           </div>
         </div>
 
-        {/* --- TOP RIGHT: Investment Summary + Chart Q&A --- */}
+        {/* --- TOP RIGHT: Suggestions + Chart Q&A --- */}
         <div className="portfolio-top-right">
           {/* Spending suggestions (from LLM) */}
           {spendingSuggestions.length > 0 && (
@@ -453,32 +415,31 @@ export default function Portfolio() {
             </div>
           )}
 
-          {/* Investment Summary */}
           <div className="card portfolio-investment-card">
             <h2 className="section-title">Investment Summary</h2>
-            {(() => {
-              const investPct = INVEST_PCT_BY_MODE[risk] || 0
-              const invested = (income ?? 10000) * investPct
-              const returns = invested * weightedRate
-              const projected = invested + returns
-              return (
-                <ul className="portfolio-savings-list">
-                  <li className="portfolio-savings-item">
-                    <div className="portfolio-savings-header">
-                      <span>Mode: {risk.charAt(0).toUpperCase() + risk.slice(1)}</span>
-                      <span className="portfolio-savings-pct">Invest {Math.round(investPct * 100)}% of income</span>
-                    </div>
-                    <div className="portfolio-savings-amounts">
-                      <span>Invested value: ${invested.toFixed(2)}</span>
-                    </div>
-                    <div className="portfolio-savings-projections">
-                      <span>Returns (1y): ${returns.toFixed(2)}</span>
-                      <span>Gross value projected (1y): ${projected.toFixed(2)}</span>
-                    </div>
-                  </li>
-                </ul>
-              )
-            })()}
+            <ul className="portfolio-savings-list">
+              <li className="portfolio-savings-item">
+                <div className="portfolio-savings-header">
+                  <span>Invested Amount</span>
+                  <span className="portfolio-savings-pct">{Math.round(annualReturnRate * 100)}% annual</span>
+                </div>
+                <div className="portfolio-savings-amounts">
+                  <span>{formatCurrency(investmentSummary.invested)}</span>
+                </div>
+                <div className="portfolio-savings-projections">
+                  <span>1Y Returns: {formatCurrency(investmentSummary.oneYear.returns)}</span>
+                  <span>1Y Gross: {formatCurrency(investmentSummary.oneYear.gross)}</span>
+                </div>
+                <div className="portfolio-savings-projections">
+                  <span>3Y Returns: {formatCurrency(investmentSummary.threeYear.returns)}</span>
+                  <span>3Y Gross: {formatCurrency(investmentSummary.threeYear.gross)}</span>
+                </div>
+                <div className="portfolio-savings-projections">
+                  <span>5Y Returns: {formatCurrency(investmentSummary.fiveYear.returns)}</span>
+                  <span>5Y Gross: {formatCurrency(investmentSummary.fiveYear.gross)}</span>
+                </div>
+              </li>
+            </ul>
           </div>
 
           {/* Chart Explanation & Q&A (Gemini) */}
