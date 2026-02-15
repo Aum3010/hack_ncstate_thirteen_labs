@@ -12,7 +12,7 @@ export default function Risk() {
     Promise.all([listBills(), listTransactions()])
       .then(([b, t]) => {
         setBills(b)
-        setTransactions(t)
+        setTransactions((t && t.transactions) || [])
       })
       .catch(console.error)
       .finally(() => setLoading(false))

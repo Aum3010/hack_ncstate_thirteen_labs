@@ -31,7 +31,7 @@ export default function Dashboard({ user }) {
     Promise.all([listBills(), listTransactions(), listWallets(), getReminders(7)])
       .then(([b, t, w, r]) => {
         setBills(b)
-        setTransactions(t)
+        setTransactions((t && t.transactions) || [])
         setWallets(w)
         setReminders(r)
       })
