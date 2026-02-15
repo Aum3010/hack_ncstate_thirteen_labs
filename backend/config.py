@@ -16,3 +16,4 @@ class Config:
     BACKBOARD_API_KEY = os.environ.get("BACKBOARD_API_KEY", "")
     ELEVENLABS_API_KEY = os.environ.get("ELEVENLABS_API_KEY", "")
     TWELVELABS_API_KEY = os.environ.get("TWELVELABS_API_KEY", "")
+    ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "dev-admin-token")

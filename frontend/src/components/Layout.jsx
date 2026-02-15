@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { logout } from '../api/auth'
 import { listBills, markPaid } from '../api/bills'
+import { listWallets, syncWallet } from '../api/wallets'
 import AssistantFab from './AssistantFab'
 import './Layout.css'
 
@@ -13,6 +14,8 @@ export default function Layout({ user, onLogout }) {
   const [notifLoading, setNotifLoading] = useState(false)
   const [showToast, setShowToast] = useState(false)
   const [highlightAlertId, setHighlightAlertId] = useState(null)
+  const [primaryWalletId, setPrimaryWalletId] = useState(null)
+  const syncingRef = useRef(false)
 
   const handleLogout = async () => {
     await logout()
@@ -82,6 +85,38 @@ export default function Layout({ user, onLogout }) {
       .catch(() => setDueAlerts([]))
       .finally(() => setNotifLoading(false))
   }, [])
+
+  // Locate the user's primary wallet once (if any)
+  useEffect(() => {
+    let cancelled = false
+    const loadWallet = async () => {
+      try {
+        const wallets = await listWallets()
+        if (!cancelled && wallets && wallets.length > 0) {
+          setPrimaryWalletId(wallets[0].id)
+        }
+      } catch {}
+    }
+    loadWallet()
+    return () => { cancelled = true }
+  }, [])
+
+  // Auto-sync Solana wallet every 10 seconds, preventing overlapping runs
+  useEffect(() => {
+    if (!primaryWalletId) return
+    const interval = setInterval(async () => {
+      if (syncingRef.current) return
+      syncingRef.current = true
+      try {
+        await syncWallet(primaryWalletId)
+        try { window.dispatchEvent(new CustomEvent('solanaSynced', { detail: { walletId: primaryWalletId } })) } catch {}
+      } catch {}
+      finally {
+        syncingRef.current = false
+      }
+    }, 60000)
+    return () => clearInterval(interval)
+  }, [primaryWalletId])
 
   // Refresh alerts when a bill is marked paid/unpaid from other views
   useEffect(() => {

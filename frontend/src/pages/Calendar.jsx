@@ -58,6 +58,20 @@ export default function Calendar() {
     listTransactions({ limit: 200 }).then((data) => setTransactions(data.transactions || [])).catch(console.error).finally(() => setTxLoading(false))
   }, [])
 
+  // Refresh transactions when the Solana auto-sync scheduler runs
+  useEffect(() => {
+    const onSolanaSynced = () => {
+      // Update badge counts across month
+      listTransactions({ limit: 200 })
+        .then((data) => setTransactions(data.transactions || []))
+        .catch(console.error)
+      // Refresh the currently selected day's paginated list (keep current page)
+      loadDayTransactions(selectedDateKey, txOffset)
+    }
+    window.addEventListener('solanaSynced', onSolanaSynced)
+    return () => window.removeEventListener('solanaSynced', onSolanaSynced)
+  }, [selectedDateKey, txOffset])
+
   const loadDayTransactions = (dateKey, offset = 0) => {
     setTxLoading(true)
     listTransactions({ date: dateKey, limit: txLimit, offset }).then((data) => {
