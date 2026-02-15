@@ -337,8 +337,8 @@ export default function Portfolio() {
       <div className="portfolio-scroll-container">
         <div className="portfolio-hud">
           <div className="portfolio-hud-title-card card">
-            <h1 className="portfolio-urban-title">URBAN NOIR</h1>
-            <p className="portfolio-urban-subtitle">Investments – scroll to ascend above the city.</p>
+            <h1 className="portfolio-urban-title">PORTFOLIO SANDBOX</h1>
+            <p className="portfolio-urban-subtitle">Investment to ascend above the city.</p>
           </div>
 
           <div className="portfolio-top">
