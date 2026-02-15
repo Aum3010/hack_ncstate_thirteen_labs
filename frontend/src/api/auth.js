@@ -1,6 +1,6 @@
 import { connectPhantom, getPhantomProvider, getPhantomAddress } from './phantom'
 
-const API = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+import { API } from './config'
 
 if (import.meta.env.DEV && !API) {
   // Empty is correct when using Vite proxy (Docker); API calls use relative /api and get proxied

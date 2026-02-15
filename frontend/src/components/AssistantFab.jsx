@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import './AssistantFab.css'
 
-const API = import.meta.env.VITE_API_URL || ''
+import { API } from '../api/config'
+import useVoiceAssistant from '../hooks/useVoiceAssistant'
+
 const MODES = [
   { value: 'conservative', label: 'Conservative' },
   { value: 'balanced', label: 'Balanced' },
@@ -14,6 +16,7 @@ export default function AssistantFab() {
   const [reply, setReply] = useState('')
   const [loading, setLoading] = useState(false)
   const [mode, setMode] = useState('balanced')
+  const { micState, assistantAudio, voiceError, toggleRecording, speakText } = useVoiceAssistant()
 
   useEffect(() => {
     if (!open) return
@@ -35,8 +38,8 @@ export default function AssistantFab() {
     }).catch(() => {})
   }
 
-  const send = async () => {
-    const msg = input.trim()
+  const send = async (textOverride = null) => {
+    const msg = (textOverride ?? input).trim()
     if (!msg) return
     setLoading(true)
     setReply('')
@@ -52,12 +55,34 @@ export default function AssistantFab() {
         ? (data.text || data.error || 'No response.')
         : (data.error || data.text || res.statusText || 'Chat failed')
       setReply(replyText)
-      setInput('')
+      if (textOverride == null) setInput('')
+      if (res.ok && replyText) {
+        speakText(replyText).catch(() => {})
+      }
     } catch (e) {
       setReply('Error: ' + e.message)
     } finally {
       setLoading(false)
     }
+  }
+
+  const toggleVoice = async () => {
+    setReply('')
+    await toggleRecording(async (transcript) => {
+      setInput(transcript)
+      await send(transcript)
+    }, 7000)
+  }
+
+  const voiceLabel =
+    micState === 'recording' ? 'Stop recording' :
+    micState === 'processing' ? 'Processing voice' :
+    assistantAudio === 'playing' ? 'Speaking...' : 'Voice input'
+
+  const handleSpeakInput = async () => {
+    const text = input.trim()
+    if (!text) return
+    await speakText(text).catch(() => {})
   }
 
   return (
@@ -81,18 +106,41 @@ export default function AssistantFab() {
               ))}
             </select>
           </div>
-          <p className="assistant-hint">Ask or command (e.g. add $50 to food). Voice (TTS/STT) will be integrated after the UI refactor so you can talk to the app end-to-end.</p>
+          <p className="assistant-hint">Ask or command (e.g. add $50 to food). Use the mic to speak and hear the reply.</p>
           {reply && <div className="assistant-reply">{reply}</div>}
-          <input
-            className="input"
-            placeholder="Ask or command..."
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && send()}
-          />
-          <button type="button" className="btn btn-primary" onClick={send} disabled={loading || !input.trim()}>
-            {loading ? '...' : 'Send'}
-          </button>
+          <div className="assistant-voice-row">
+            <button
+              type="button"
+              className={`btn assistant-mic ${micState === 'recording' ? 'assistant-mic-recording' : ''}`}
+              onClick={toggleVoice}
+              disabled={loading || micState === 'processing'}
+              title={voiceLabel}
+              aria-label="Voice input"
+            >
+              {micState === 'recording' ? '■' : micState === 'processing' ? '...' : '🎤'}
+            </button>
+            <input
+              className="input"
+              placeholder="Ask or command..."
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && send()}
+            />
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleSpeakInput}
+              disabled={loading || micState === 'processing' || assistantAudio === 'playing' || !input.trim()}
+              aria-label="Speak text"
+              title={assistantAudio === 'playing' ? 'Playing audio' : 'Speak typed text'}
+            >
+              {assistantAudio === 'playing' ? '...' : '🔊'}
+            </button>
+            <button type="button" className="btn btn-primary" onClick={() => send()} disabled={loading || micState === 'processing' || !input.trim() || micState === 'recording'}>
+              {loading ? '...' : 'Send'}
+            </button>
+          </div>
+          {voiceError ? <div className="assistant-hint" style={{ color: 'var(--neon-pink)', marginTop: '0.5rem', marginBottom: 0 }}>{voiceError}</div> : null}
         </div>
       )}
       <button

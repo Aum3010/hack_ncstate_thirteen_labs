@@ -359,3 +359,29 @@
 .portfolio-chat-input-row .input {
   flex: 1;
 }
+
+.portfolio-chat-mic {
+  min-width: 48px;
+}
+
+.portfolio-chat-speak {
+  min-width: 48px;
+}
+
+.portfolio-chat-mic-recording {
+  border-color: var(--ember-amber);
+  box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.2);
+}
+
+.portfolio-voice-error {
+  margin: 0.4rem 0 0;
+  color: var(--neon-pink);
+  font-size: 0.8rem;
+}
+
+@media (max-width: 960px) {
+  .portfolio-top {
+    flex-direction: column;
+    min-height: 0;
+  }
+}

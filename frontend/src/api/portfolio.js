@@ -1,4 +1,7 @@
-const API = import.meta.env.VITE_API_URL || ''
+import { API } from './config'
+import { textToSpeech } from './assistant'
+
+export { textToSpeech }
 
 function credentials() {
   return { credentials: 'include' }
@@ -90,13 +93,3 @@ export async function portfolioChat(messageOrPayload, mode, messages = null) {
   return data
 }
 
-export async function textToSpeech(text) {
-  const res = await fetch(`${API}/api/assistant/tts`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    ...credentials(),
-    body: JSON.stringify({ text }),
-  })
-  if (!res.ok) throw new Error('TTS failed')
-  return res.json()
-}

@@ -4,6 +4,8 @@ Flask API backend for the Nightshade personal finance platform. Includes AI voic
 
 Runs headless in Docker. Zero disk storage for audio -- all TTS is streamed directly from ElevenLabs to the browser.
 
+Voice implementation reference: `VOICE_STT_TTS_README.md`.
+
 ---
 
 ## Quick Start
