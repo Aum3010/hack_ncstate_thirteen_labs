@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts'
 import { getProfile } from '../api/users'
 import { portfolioChat, getPortfolioAllocation, getSpendingAnalysis } from '../api/portfolio'
@@ -66,17 +66,7 @@ export default function Portfolio() {
   const [messages, setMessages] = useState([])
   const [chatInput, setChatInput] = useState('')
   const [chatLoading, setChatLoading] = useState(false)
-  const [scrollProgress, setScrollProgress] = useState(0)
-  const scrollContainerRef = useRef(null)
-
-  const handleScroll = useCallback(() => {
-    const el = scrollContainerRef.current
-    if (!el) return
-    const { scrollTop, scrollHeight, clientHeight } = el
-    const maxScroll = scrollHeight - clientHeight
-    const progress = maxScroll <= 0 ? 0 : Math.min(1, scrollTop / maxScroll)
-    setScrollProgress(progress)
-  }, [])
+  // Removed parallax scroll handling; content now starts below navbar
 
   // No spending analysis fetch
 
@@ -287,12 +277,7 @@ export default function Portfolio() {
 
   return (
     <div className="portfolio-page portfolio-urban">
-      <div
-        className="portfolio-scroll-container"
-        ref={scrollContainerRef}
-        onScroll={handleScroll}
-      >
-        <div className="portfolio-scroll-spacer" aria-hidden="true" />
+      <div className="portfolio-scroll-container">
         <div className="portfolio-hud">
           <div className="portfolio-hud-title-card card">
             <h1 className="portfolio-urban-title">URBAN NOIR</h1>
