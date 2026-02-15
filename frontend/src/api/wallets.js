@@ -22,3 +22,15 @@ export async function syncWallet(walletId) {
   }
   return res.json()
 }
+
+export async function disconnectWallet(walletId) {
+  const res = await fetch(`${API}/api/wallets/${walletId}`, {
+    method: 'DELETE',
+    ...credentials(),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error || 'Failed to disconnect wallet')
+  }
+  return res.json()
+}

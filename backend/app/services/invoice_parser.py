@@ -2,7 +2,6 @@
 import os
 import json
 import re
-import base64
 
 
 def parse_invoice_with_gemini(file_content: bytes, file_name: str) -> dict | None:
@@ -15,9 +14,9 @@ def parse_invoice_with_gemini(file_content: bytes, file_name: str) -> dict | Non
     if not api_key:
         return None
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        from google import genai
+        from google.genai import types
+        client = genai.Client(api_key=api_key)
         fn = (file_name or "").lower()
         if fn.endswith(".pdf"):
             mime = "application/pdf"
@@ -25,16 +24,17 @@ def parse_invoice_with_gemini(file_content: bytes, file_name: str) -> dict | Non
             mime = "image/jpeg"
         else:
             mime = "image/png"
-        part = {
-            "inline_data": {"mime_type": mime, "data": base64.b64encode(file_content).decode()}
-        }
         prompt = (
             "Extract the following from this invoice/bill document. Respond with valid JSON only, no markdown. "
             'Use this exact structure: {"amount": number or null, "due_date": "YYYY-MM-DD" or null, '
             '"merchant": string or null, "line_items": [{"description": string, "amount": number}] or []}. '
             "Amount should be the total in USD. If no amount found, use null."
         )
-        response = model.generate_content([prompt, part])
+        contents = [
+            types.Part.from_text(prompt),
+            types.Part.from_bytes(data=file_content, mime_type=mime),
+        ]
+        response = client.models.generate_content(model="gemini-1.5-flash", contents=contents)
         text = (response.text or "").strip()
         text = re.sub(r"^```(?:json)?\s*", "", text)
         text = re.sub(r"\s*```$", "", text)

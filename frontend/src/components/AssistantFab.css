@@ -28,6 +28,8 @@
   right: 0;
   min-width: 320px;
   max-width: 400px;
+  box-shadow: var(--shadow-key-light);
+  border-left: 3px solid var(--ember-amber);
 }
 
 .assistant-panel-header {

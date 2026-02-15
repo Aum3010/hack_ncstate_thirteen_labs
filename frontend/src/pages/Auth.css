@@ -5,19 +5,45 @@
   justify-content: center;
   padding: 1.5rem;
   background: var(--bg-dark);
+  position: relative;
+  background-image: radial-gradient(ellipse 80% 60% at 50% 50%, rgba(217, 119, 6, 0.06), transparent 60%);
+}
+
+.auth-scene-3d {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.7;
+}
+.auth-scene-3d canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.auth-page .auth-card {
+  position: relative;
+  z-index: 1;
 }
 
 .auth-card {
   width: 100%;
   max-width: 400px;
+  background: var(--tweed-charcoal);
+  border: 2px solid var(--overcoat-brown);
+  border-left: 6px solid var(--ember-amber);
+  box-shadow: var(--shadow-key-light), 0 24px 48px rgba(0, 0, 0, 0.5), 0 0 80px rgba(217, 119, 6, 0.08);
+  padding: 1.5rem;
+  border-radius: 8px;
 }
 
 .auth-title {
-  font-size: 1.75rem;
-  color: var(--neon-blue);
-  text-shadow: var(--shadow-neon-blue);
+  font-size: 2rem;
+  font-family: var(--font-display);
+  color: var(--ember-amber);
   margin: 0 0 0.25rem 0;
-  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
 }
 
 .auth-subtitle {

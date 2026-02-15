@@ -1,12 +1,16 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { logout } from '../api/auth'
 import { listBills, markPaid } from '../api/bills'
 import { listWallets, syncWallet } from '../api/wallets'
 import AssistantFab from './AssistantFab'
+import ChatBar from './ChatBar'
+import ProfileModal from './ProfileModal'
 import './Layout.css'
 
-export default function Layout({ user, onLogout }) {
+const Scene3DEnvironment = lazy(() => import('./Scene3DEnvironment'))
+
+export default function Layout({ user, onLogout, onUpdate }) {
   const navigate = useNavigate()
   const location = useLocation()
   const [notifOpen, setNotifOpen] = useState(false)
@@ -16,6 +20,7 @@ export default function Layout({ user, onLogout }) {
   const [highlightAlertId, setHighlightAlertId] = useState(null)
   const [primaryWalletId, setPrimaryWalletId] = useState(null)
   const syncingRef = useRef(false)
+  const [profileModalOpen, setProfileModalOpen] = useState(false)
 
   const handleLogout = async () => {
     await logout()
@@ -187,20 +192,26 @@ export default function Layout({ user, onLogout }) {
   }, [location.search])
 
   const nav = [
-    { to: '/', label: 'Dashboard' },
+    { to: '/', label: 'Home', end: true },
+    { to: '/experiences', label: 'Experiences' },
     { to: '/money', label: 'Money & Crypto' },
     { to: '/calendar', label: 'Calendar & Bills' },
-    { to: '/risk', label: 'Risk' },
+    { to: '/risk', label: 'Investments' },
     { to: '/portfolio', label: 'Portfolio' },
   ]
 
   return (
     <div className="layout">
+      <Suspense fallback={null}>
+        <Scene3DEnvironment />
+      </Suspense>
       <header className="layout-header">
-        <div className="layout-brand">Nightshade</div>
+        <NavLink to="/" className="layout-brand">
+          Nightshade
+        </NavLink>
         <nav className="layout-nav">
-          {nav.map(({ to, label }) => (
-            <NavLink key={to} to={to} className={({ isActive }) => 'layout-nav-link' + (isActive ? ' active' : '')}>
+          {nav.map(({ to, label, end }) => (
+            <NavLink key={to} to={to} end={end} className={({ isActive }) => 'layout-nav-link' + (isActive ? ' active' : '')}>
               {label}
             </NavLink>
           ))}
@@ -226,10 +237,8 @@ export default function Layout({ user, onLogout }) {
                     className="btn btn-primary"
                     onClick={() => {
                       setShowToast(false)
-                      // Target the most imminent bill
                       const target = dueAlerts.length > 0 ? dueAlerts[0].id : null
                       if (target) setHighlightAlertId(target)
-                      // Open dropdown to show due bills without redirecting
                       setNotifOpen(true)
                     }}
                   >
@@ -270,7 +279,6 @@ export default function Layout({ user, onLogout }) {
                           className="btn btn-primary"
                           onClick={async () => {
                             await markPaid(a.id, true)
-                            // Notify other views (e.g., Calendar) to update immediately
                             try { window.dispatchEvent(new CustomEvent('billPaid', { detail: { id: a.id, paid: true } })) } catch {}
                             setDueAlerts((prev) => prev.filter((x) => x.id !== a.id))
                           }}
@@ -285,6 +293,14 @@ export default function Layout({ user, onLogout }) {
             )}
           </div>
           <span className="layout-user-email">{user?.email || user?.username || 'User'}</span>
+          <button
+            type="button"
+            className="layout-hamburger btn btn-ghost"
+            onClick={() => setProfileModalOpen(true)}
+            aria-label="Open profile and settings"
+          >
+            ☰
+          </button>
           <button type="button" className="btn btn-ghost" onClick={handleLogout}>
             Log out
           </button>
@@ -293,7 +309,13 @@ export default function Layout({ user, onLogout }) {
       <main className="layout-main">
         <Outlet />
       </main>
-      <AssistantFab />
+      <ProfileModal
+        open={profileModalOpen}
+        onClose={() => setProfileModalOpen(false)}
+        user={user}
+        onUpdate={onUpdate}
+      />
+      <ChatBar />
     </div>
   )
 }

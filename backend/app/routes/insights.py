@@ -1,12 +1,15 @@
 """AI-powered financial insights for the hero section."""
 import os
 import json
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from flask import Blueprint, jsonify
 from app.routes.auth import get_current_user_id
 from app.models import User, Transaction, Bill, Goal
 from datetime import datetime
 
 insights_bp = Blueprint("insights", __name__)
+
+GEMINI_TIMEOUT_SECONDS = 15
 
 
 def _call_gemini_for_insights(context: str) -> list[dict]:
@@ -15,9 +18,8 @@ def _call_gemini_for_insights(context: str) -> list[dict]:
     if not api_key:
         return []
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        from google import genai
+        client = genai.Client(api_key=api_key)
         prompt = (
             "Given this user's financial picture, provide 2-3 short, actionable insights. "
             "Respond with valid JSON array only, no markdown. "
@@ -25,7 +27,7 @@ def _call_gemini_for_insights(context: str) -> list[dict]:
             "Be concise (one sentence per insight). "
             "Context:\n" + context
         )
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(model="gemini-1.5-flash", contents=prompt)
         text = (response.text or "").strip()
         text = text.removeprefix("```json").removeprefix("```").strip().removesuffix("```").strip()
         out = json.loads(text)
@@ -56,7 +58,7 @@ def get_insights():
     bills = Bill.query.filter_by(user_id=uid).filter(Bill.paid_at.is_(None)).all()
     goals = Goal.query.filter_by(user_id=uid).all()
 
-    total_spend = sum(t.amount_cents for t in txns)
+    total_spend = sum(abs(t.amount_cents) for t in txns if t.amount_cents < 0)
     bill_total = sum(b.amount_cents for b in bills)
     goal_targets = sum(g.target_cents for g in goals)
     goal_saved = sum(g.saved_cents for g in goals)
@@ -72,5 +74,14 @@ def get_insights():
     if goals:
         context_lines.append("Goal names: " + ", ".join(g.name for g in goals[:5]))
     context = "\n".join(context_lines)
-    insights = _call_gemini_for_insights(context)
+    executor = ThreadPoolExecutor(max_workers=1)
+    try:
+        future = executor.submit(_call_gemini_for_insights, context)
+        insights = future.result(timeout=GEMINI_TIMEOUT_SECONDS)
+    except FuturesTimeoutError:
+        insights = []
+    except Exception:
+        insights = []
+    finally:
+        executor.shutdown(wait=False)
     return jsonify({"insights": insights})

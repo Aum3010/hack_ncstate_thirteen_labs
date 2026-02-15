@@ -78,7 +78,7 @@ export default function AssistantFab() {
               ))}
             </select>
           </div>
-          <p className="assistant-hint">Ask or command (e.g. add $50 to food). Voice: ElevenLabs when configured.</p>
+          <p className="assistant-hint">Ask or command (e.g. add $50 to food). Voice (TTS/STT) will be integrated after the UI refactor so you can talk to the app end-to-end.</p>
           {reply && <div className="assistant-reply">{reply}</div>}
           <input
             className="input"

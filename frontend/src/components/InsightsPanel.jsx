@@ -17,8 +17,8 @@ export default function InsightsPanel() {
   if (!insights || insights.length === 0) return null
 
   return (
-    <div className="insights-panel card">
-      <h3 className="insights-title">AI insights</h3>
+    <div className="insights-panel insights-strip">
+      <h3 className="insights-strip-title">AI insights</h3>
       <ul className="insights-list">
         {insights.map((insight, i) => (
           <li key={i} className={`insights-item insights-${insight.category || 'general'}`}>

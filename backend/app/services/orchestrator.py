@@ -7,6 +7,7 @@ from collections import defaultdict
 from app import db
 from app.models import User
 from app.services.backboard_ingest import build_user_financial_snapshot
+from app.services.user_context import get_user_financial_history
 
 logger = logging.getLogger(__name__)
 
@@ -20,9 +21,36 @@ TRANSACTIONS_KEYWORDS = ("transaction", "transactions", "spend", "spending", "so
 INSIGHTS_KEYWORDS = ("insight", "recommend", "advice", "how am i", "summary", "overview")
 
 
+def _format_financial_history_block(history: dict) -> list[str]:
+    """Condense user financial history into 2-4 lines for the prompt."""
+    lines = []
+    onboarding = history.get("onboarding_answers") or {}
+    profile = history.get("profile_questionnaire") or {}
+    name = (onboarding.get("display_name") or profile.get("display_name") or "").strip()
+    focus = onboarding.get("main_focus") or profile.get("main_focus") or ""
+    time_horizon = onboarding.get("goal_time_horizon") or profile.get("goal_time_horizon") or ""
+    concern = onboarding.get("biggest_concern") or profile.get("biggest_concern") or ""
+    risk = profile.get("risk_tolerance") or ""
+    short_goal = profile.get("short_term_goal") or ""
+    long_goal = profile.get("long_term_goal") or ""
+    if name:
+        lines.append(f"User prefers to be called: {name}.")
+    if focus or time_horizon:
+        parts = [p for p in [focus, time_horizon] if p]
+        lines.append("Focus: " + "; ".join(parts) + ".")
+    if concern:
+        lines.append(f"Biggest concern: {concern[:200]}.")
+    if risk or short_goal or long_goal:
+        extra = [p for p in [risk and f"Risk: {risk}", short_goal and f"Short-term: {short_goal[:100]}", long_goal and f"Long-term: {long_goal[:100]}"] if p]
+        if extra:
+            lines.append(" ".join(extra))
+    return lines
+
+
 def build_context(user_id: int) -> str:
     """Build text context from DB snapshot for the LLM (condensed for prompt)."""
     snapshot = build_user_financial_snapshot(user_id)
+    history = get_user_financial_history(user_id)
     if not snapshot:
         return "No financial data available for this user."
     lines = [
@@ -30,6 +58,11 @@ def build_context(user_id: int) -> str:
         "",
         "=== User financial context ===",
     ]
+    history_lines = _format_financial_history_block(history)
+    if history_lines:
+        lines.append("--- User financial history ---")
+        lines.extend(history_lines)
+        lines.append("")
     summary = snapshot.get("summary", {})
     lines.append(
         f"Monthly spend (recent): ${summary.get('total_spend_dollars', 0):.2f}. "
@@ -50,7 +83,9 @@ def build_context(user_id: int) -> str:
     if transactions:
         by_cat = defaultdict(lambda: 0)
         for t in transactions:
-            by_cat[t.get("category") or "other"] += t.get("amount_cents", 0)
+            ac = t.get("amount_cents", 0)
+            if ac < 0:
+                by_cat[t.get("category") or "other"] += abs(ac)
         if by_cat:
             top_cat = max(by_cat, key=by_cat.get)
             top_dollars = by_cat[top_cat] / 100
@@ -197,6 +232,35 @@ def _tldr_explainer_prompt() -> str:
     )
 
 
+def _portfolio_allocation_prompt() -> str:
+    """System prompt for portfolio allocation: response must be JSON only."""
+    return (
+        "You are a financial portfolio advisor. You must respond with ONLY valid JSON. "
+        "Do not include markdown, code fences, or any text outside the JSON. "
+        "Output format: {\"categories\": [{\"name\": \"Category Name\", \"percentage\": <int>, \"color\": \"#hex\"}]}. "
+        "Provide 4-6 categories; percentages must sum to 100. Use hex color codes for each category."
+    )
+
+
+def _portfolio_spending_analysis_prompt() -> str:
+    """System prompt for spending analysis: response must be JSON only."""
+    return (
+        "You are a spending analysis advisor. You must respond with ONLY valid JSON. "
+        "Do not include markdown, code fences, or any text outside the JSON. "
+        "Output format: {\"suggestions\": [{\"category\": \"<category_name>\", \"message\": \"<specific advice>\", \"save_amount\": <float>}]}. "
+        "Provide 2-4 suggestions with category, short message, and estimated monthly savings amount."
+    )
+
+
+def _portfolio_description_prompt() -> str:
+    """System prompt for project description: response must be 2-3 sentences plain text."""
+    return (
+        "You generate concise, professional portfolio project descriptions (2-3 sentences). "
+        "Write in third person. Focus on what the project does, technical highlights, and value. "
+        "Respond with plain text only—no JSON, no code blocks, no markdown."
+    )
+
+
 def get_mode_system_append(mode: str) -> str:
     """Return the mode-specific system instruction to append to the base prompt."""
     mode = (mode or "balanced").strip().lower()
@@ -242,6 +306,7 @@ def chat(
     mode: str | None = None,
     messages: list | None = None,
     finance_payload: dict | None = None,
+    page: str | None = None,
 ) -> dict:
     """
     Orchestrator entry: build context, build system prompt (with mode), call Backboard once.
@@ -255,13 +320,18 @@ def chat(
         }
     context = build_context(user_id)
     base_system = _base_system_prompt()
-    if finance_payload:
+    portfolio_task = (finance_payload or {}).get("portfolio_task")
+    if portfolio_task == "allocation":
+        system_prompt = _portfolio_allocation_prompt()
+    elif portfolio_task == "spending_analysis":
+        system_prompt = _portfolio_spending_analysis_prompt()
+    elif portfolio_task == "description":
+        system_prompt = _portfolio_description_prompt()
+    elif finance_payload:
         system_prompt = _tldr_explainer_prompt()
     else:
         mode_append = get_mode_system_append(mode)
         system_prompt = base_system + mode_append
-
-    if not finance_payload:
         intents = route_intent(message)
         intent_instruction = ""
         if "goals" in intents:
@@ -273,6 +343,16 @@ def chat(
         else:
             intent_instruction = " The user wants overall insight or advice. Give a concise, data-driven summary and 2–3 actionable steps tied to their numbers."
         system_prompt = system_prompt + intent_instruction
+
+    if page:
+        page_hint = (
+            " The user is currently on the "
+            + {"dashboard": "Dashboard (home)", "calendar": "Calendar & Bills", "risk": "Investments", "bills": "Bills"}.get(
+                page, page.replace("_", " ").title()
+            )
+            + " page. When relevant, tailor your response to this context (e.g. calendar date, bills list, investments)."
+        )
+        system_prompt = system_prompt + page_hint
 
     history_lines = []
     if isinstance(messages, list):
@@ -311,7 +391,7 @@ def chat(
                     "name": "Nightshade Financial",
                     "system_prompt": base_system + get_mode_system_append(mode or "balanced"),
                 },
-                timeout=30,
+                timeout=(10, 30),
             )
             if not r.ok:
                 logger.warning("Backboard create assistant failed: status=%s body=%s", r.status_code, (r.text or "")[:500])
@@ -334,7 +414,7 @@ def chat(
                 f"{base_url}/assistants/{assistant_id}/threads",
                 headers=headers,
                 json={},
-                timeout=30,
+                timeout=(10, 30),
             )
             if not r.ok:
                 logger.warning("Backboard create thread failed: status=%s body=%s", r.status_code, (r.text or "")[:500])
@@ -353,7 +433,7 @@ def chat(
             headers=msg_headers,
             data={"stream": "false", "memory": "Auto", "web_search": "Auto"},
             files=[("content", (None, full_message))],
-            timeout=60,
+            timeout=(10, 60),
         )
         if not r.ok:
             body_snippet = (r.text or "")[:500]
@@ -374,6 +454,19 @@ def chat(
         out = r.json()
         content = out.get("content") or out.get("text") or out.get("response")
         return {"text": content or "No response.", "action": out.get("action")}
+    except requests.exceptions.ConnectionError as e:
+        logger.warning("Backboard connection failed: %s", e)
+        err_str = str(e).lower()
+        if "resolve" in err_str or "name resolution" in err_str or "nodename" in err_str:
+            hint = (
+                "Cannot resolve app.backboard.io (DNS failure). "
+                "If using Docker, try: (1) Restart containers. (2) Ensure outbound DNS (8.8.8.8) works. "
+                "(3) Run backend outside Docker to test. "
+                "See README 'Backboard connection' for more."
+            )
+        else:
+            hint = f"Backboard connection failed: {e}. Check network and BACKBOARD_API_BASE."
+        return {"text": f"Backboard unavailable: {hint}", "action": None}
     except Exception as e:
         logger.exception("Backboard chat failed")
         return {"text": f"Backboard unavailable: {e}", "action": None}

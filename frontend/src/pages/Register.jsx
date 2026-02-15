@@ -1,23 +1,32 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, lazy, Suspense } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { register } from '../api/auth'
+import { register, loginWithPhantom, getMe } from '../api/auth'
 import './Auth.css'
+
+const AuthScene3D = lazy(() => import('../components/AuthScene3D'))
 
 export default function Register({ onRegister }) {
   const navigate = useNavigate()
-  const [emailOrUsername, setEmailOrUsername] = useState('')
+  const [email, setEmail] = useState('')
+  useEffect(() => {
+    document.body.classList.add('wallpaper-bg')
+    return () => document.body.classList.remove('wallpaper-bg')
+  }, [])
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [phantomLoading, setPhantomLoading] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
     setLoading(true)
     try {
-      await register(emailOrUsername, password)
-      onRegister((await import('../api/auth').then(m => m.getMe())).user)
-      navigate('/')
+      await register(email, password, username || undefined)
+      const { user } = await getMe()
+      onRegister(user)
+      navigate((user?.email || user?.username) ? '/' : '/profile')
     } catch (err) {
       setError(err.message || 'Registration failed')
     } finally {
@@ -25,20 +34,55 @@ export default function Register({ onRegister }) {
     }
   }
 
+  const handlePhantom = async () => {
+    setError('')
+    setPhantomLoading(true)
+    try {
+      const { user } = await loginWithPhantom()
+      onRegister(user)
+      navigate((user?.email || user?.username) ? '/' : '/profile')
+    } catch (err) {
+      setError(err.message || 'Phantom sign-up failed')
+    } finally {
+      setPhantomLoading(false)
+    }
+  }
+
   return (
     <div className="auth-page">
-      <div className="auth-card card">
+      <Suspense fallback={null}>
+        <AuthScene3D />
+      </Suspense>
+      <div className="auth-card">
         <h1 className="auth-title">Nightshade</h1>
         <p className="auth-subtitle">Create account</p>
+        <button
+          type="button"
+          className="btn btn-ember"
+          onClick={handlePhantom}
+          disabled={phantomLoading}
+          style={{ marginBottom: '1rem', width: '100%' }}
+        >
+          {phantomLoading ? 'Connecting...' : 'Sign up with Phantom'}
+        </button>
+        <p className="text-muted" style={{ marginBottom: '1rem', fontSize: '0.9rem' }}>or</p>
         <form onSubmit={handleSubmit} className="auth-form">
           {error && <div className="auth-error">{error}</div>}
           <input
             className="input"
-            type="text"
-            placeholder="Email or username"
-            value={emailOrUsername}
-            onChange={(e) => setEmailOrUsername(e.target.value)}
+            type="email"
+            placeholder="Email (required)"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             required
+            autoComplete="email"
+          />
+          <input
+            className="input"
+            type="text"
+            placeholder="Username (optional)"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
             autoComplete="username"
           />
           <input
@@ -51,7 +95,7 @@ export default function Register({ onRegister }) {
             minLength={6}
             autoComplete="new-password"
           />
-          <button type="submit" className="btn btn-primary" disabled={loading}>
+          <button type="submit" className="btn btn-ember" disabled={loading}>
             {loading ? 'Creating...' : 'Register'}
           </button>
         </form>

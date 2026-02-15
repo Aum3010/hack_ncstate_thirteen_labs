@@ -33,8 +33,13 @@ def chat():
     if not mode:
         user = User.query.get(uid)
         mode = (user.assistant_mode or "balanced") if user else "balanced"
+    route = (data.get("route") or "").strip() or None
+    context = data.get("context") or {}
+    page = context.get("page") if isinstance(context, dict) else None
+    if not page and route:
+        page = (route or "").replace("/", "").strip() or "dashboard"
     api_key = os.environ.get("BACKBOARD_API_KEY", "")
-    out = orchestrator_chat(message, uid, api_key, mode=mode, messages=messages, finance_payload=finance_payload)
+    out = orchestrator_chat(message, uid, api_key, mode=mode, messages=messages, finance_payload=finance_payload, page=page)
     return jsonify(out)
 
 

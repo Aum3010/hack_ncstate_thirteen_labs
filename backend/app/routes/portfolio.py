@@ -1,10 +1,25 @@
+import os
+from collections import defaultdict
+
 from flask import Blueprint, request, jsonify
 from app import db
 from app.routes.auth import get_current_user_id
 from app.models import PortfolioItem, Transaction, Goal
-from app.services.portfolio_llm import generate_allocation, analyze_spending, generate_description
+from app.services.portfolio_llm import _parse_json_response
+from app.services.orchestrator import chat as orchestrator_chat
 
 portfolio_bp = Blueprint("portfolio", __name__)
+
+# Fallback allocation when orchestrator/parsing fails (same as portfolio_llm)
+DEFAULT_ALLOCATION = {
+    "categories": [
+        {"name": "US Stocks", "percentage": 40, "color": "#00d4ff"},
+        {"name": "International Stocks", "percentage": 20, "color": "#ff2d92"},
+        {"name": "Bonds", "percentage": 20, "color": "#00ff88"},
+        {"name": "Real Estate", "percentage": 10, "color": "#f59e0b"},
+        {"name": "Cash / Savings", "percentage": 10, "color": "#8b5cf6"},
+    ]
+}
 
 
 @portfolio_bp.route("/", methods=["GET"])
@@ -78,8 +93,19 @@ def gen_description(item_id):
     item = PortfolioItem.query.filter_by(id=item_id, user_id=uid).first()
     if not item:
         return jsonify({"error": "Item not found"}), 404
-    desc = generate_description(item.title, item.tech_stack, item.description)
-    if desc is None:
+    api_key = os.environ.get("BACKBOARD_API_KEY", "")
+    if not api_key:
+        return jsonify({"error": "LLM unavailable. Set BACKBOARD_API_KEY to enable."}), 503
+    finance_payload = {
+        "portfolio_task": "description",
+        "title": item.title or "",
+        "tech_stack": item.tech_stack or "",
+        "existing_description": item.description or "",
+    }
+    message = f"Generate a portfolio description for: {item.title}"
+    out = orchestrator_chat(message, uid, api_key, finance_payload=finance_payload)
+    desc = (out.get("text") or "").strip()
+    if not desc:
         return jsonify({"error": "LLM unavailable. Set BACKBOARD_API_KEY to enable."}), 503
     item.description = desc
     db.session.commit()
@@ -88,22 +114,48 @@ def gen_description(item_id):
 
 @portfolio_bp.route("/allocation", methods=["POST"])
 def get_allocation():
-    """LLM-generated portfolio allocation based on user's investment goal."""
+    """LLM-generated portfolio allocation based on user's investment goal (via orchestrator + memory)."""
     uid = get_current_user_id()
     if not uid:
         return jsonify({"error": "Not authenticated"}), 401
     data = request.get_json() or {}
-    goal = (data.get("goal") or "").strip()
-    if not goal:
-        return jsonify({"error": "goal required"}), 400
+    goal = (data.get("goal") or "").strip() or "general growth and retirement"
     risk = (data.get("risk_tolerance") or "balanced").strip()
-    result = generate_allocation(goal, risk)
-    return jsonify(result)
+    api_key = os.environ.get("BACKBOARD_API_KEY", "")
+    if not api_key:
+        return jsonify(DEFAULT_ALLOCATION)
+    finance_payload = {"portfolio_task": "allocation", "goal": goal, "risk_tolerance": risk}
+    message = f"Generate portfolio allocation for goal: {goal}, risk tolerance: {risk}"
+    out = orchestrator_chat(message, uid, api_key, finance_payload=finance_payload)
+    text = out.get("text") or ""
+    parsed = _parse_json_response(text)
+    if parsed and "categories" in parsed:
+        return jsonify(parsed)
+    return jsonify(DEFAULT_ALLOCATION)
+
+
+def _spending_fallback(tx_dicts):
+    """Fallback suggestions when orchestrator/parsing fails (same logic as portfolio_llm)."""
+    if not tx_dicts:
+        return {"suggestions": [{"category": "general", "message": "Add transactions to get personalized spending analysis.", "save_amount": 0}]}
+    by_cat = defaultdict(float)
+    for t in tx_dicts:
+        cat = t.get("category") or "other"
+        by_cat[cat] += (t.get("amount_cents") or 0) / 100
+    suggestions = []
+    for cat, amt in sorted(by_cat.items(), key=lambda x: -x[1])[:3]:
+        reduction = round(amt * 0.15, 2)
+        suggestions.append({
+            "category": cat,
+            "message": f"Consider reducing {cat} spending by 15% to save ${reduction:.2f}/month.",
+            "save_amount": reduction,
+        })
+    return {"suggestions": suggestions}
 
 
 @portfolio_bp.route("/spending-analysis", methods=["GET"])
 def get_spending_analysis():
-    """LLM-analyzed spending patterns with reduction suggestions."""
+    """LLM-analyzed spending patterns with reduction suggestions (via orchestrator + memory)."""
     uid = get_current_user_id()
     if not uid:
         return jsonify({"error": "Not authenticated"}), 401
@@ -111,7 +163,41 @@ def get_spending_analysis():
     goals = Goal.query.filter_by(user_id=uid).all()
     tx_dicts = [t.to_dict() for t in transactions]
     goal_dicts = [g.to_dict() for g in goals]
-    result = analyze_spending(tx_dicts, goal_dicts)
+
+    spending_lines = []
+    by_cat = defaultdict(float)
+    for t in tx_dicts:
+        cat = t.get("category") or "other"
+        by_cat[cat] += (t.get("amount_cents") or 0) / 100
+    for cat, amt in sorted(by_cat.items(), key=lambda x: -x[1]):
+        spending_lines.append(f"  {cat}: ${amt:.2f}")
+    spending_summary = "\n".join(spending_lines) if spending_lines else "No spending data."
+
+    goals_lines = []
+    for g in goal_dicts:
+        target = g.get("target", g.get("target_cents", 0) / 100 if g.get("target_cents") else 0)
+        saved = g.get("saved", g.get("saved_cents", 0) / 100 if g.get("saved_cents") else 0)
+        goals_lines.append(f"  {g.get('name')}: ${saved:.2f} / ${target:.2f}")
+    goals_summary = "\n".join(goals_lines) if goals_lines else "No goals set."
+
+    api_key = os.environ.get("BACKBOARD_API_KEY", "")
+    if not api_key:
+        result = _spending_fallback(tx_dicts)
+    else:
+        finance_payload = {
+            "portfolio_task": "spending_analysis",
+            "spending_summary": spending_summary,
+            "goals_summary": goals_summary,
+        }
+        message = "Analyze spending and suggest reductions to redirect savings toward goals."
+        out = orchestrator_chat(message, uid, api_key, finance_payload=finance_payload)
+        text = out.get("text") or ""
+        parsed = _parse_json_response(text)
+        if parsed and "suggestions" in parsed:
+            result = parsed
+        else:
+            result = _spending_fallback(tx_dicts)
+
     savings = []
     for g in goals:
         d = g.to_dict()

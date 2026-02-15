@@ -52,9 +52,11 @@ def summary():
 
     actual = {k: 0 for k in PARTITION_KEYS}
     for t in transactions:
+        if t.amount_cents >= 0:
+            continue
         key = _map_category(t.category)
         if key in actual:
-            actual[key] += t.amount_cents
+            actual[key] += abs(t.amount_cents)
 
     bill_total = sum(b.amount_cents for b in bills)
     actual["bill_payments"] += bill_total
@@ -82,9 +84,21 @@ def summary():
             "fill": colors.get(k, "#8888a0"),
         })
 
+    target_pcts = {}
+    if cfg:
+        for k in PARTITION_KEYS:
+            part = cfg.get(k) or {}
+            if isinstance(part, dict):
+                target_pcts[k] = part.get("target_pct", 100 // len(PARTITION_KEYS))
+            else:
+                target_pcts[k] = 100 // len(PARTITION_KEYS)
+    else:
+        target_pcts = {k: 100 // len(PARTITION_KEYS) for k in PARTITION_KEYS}
+
     return jsonify({
         "partitions": pie_data,
         "total_actual_cents": total_actual,
+        "target_pcts": target_pcts,
         "wallets": [w.to_dict() for w in wallets],
         "goals": [g.to_dict() for g in goals],
         "insights": [],

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { listBills, createBill, markPaid } from '../api/bills'
 import { listTransactions } from '../api/transactions'
 import './Calendar.css'
@@ -165,54 +166,60 @@ export default function Calendar() {
   return (
     <div className="calendar-page">
       <div className="page-header">
-        <h1 className="page-title">Calendar</h1>
-        <button type="button" className="btn btn-primary" onClick={() => setShowDueModal(true)}>View due bills</button>
+        <h1 className="page-title">Calendar & Bills</h1>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <button type="button" className="btn btn-primary" onClick={() => setShowDueModal(true)}>View due bills</button>
+          <Link to="/bills" className="btn btn-ghost">Manage all bills</Link>
+        </div>
       </div>
-      <div className="calendar-controls">
-        <button type="button" className="btn btn-ghost" onClick={prev}>←</button>
-        <span className="calendar-month-label">{monthLabel}</span>
-        <button type="button" className="btn btn-ghost" onClick={next}>→</button>
-      </div>
-      <div className="calendar-grid">
-        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
-          <div key={d} className="calendar-weekday">{d}</div>
-        ))}
-        {days.map((d, i) => {
-          const key = formatKey(d)
-          const items = byDate[key] || []
-          const txCount = (txByDate[key] || []).length
-          const isToday = d && formatKey(new Date()) === key
-          const isSelected = d && key === selectedDateKey
-          const isSameDay = (a, b) => a && b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
-          const today = new Date()
-          return (
-            <div
-              key={i}
-              className={`calendar-day ${!d ? 'empty' : ''} ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''}`}
-              onClick={() => d && setSelectedDateKey(key)}
-            >
-              {d && <span className="day-num">{d.getDate()}</span>}
-              {d && items.length > 0 && (
-                <ul className="day-bills">
-                  {items.slice(0, 3).map((b) => {
-                    const status = b.paid_at ? ' paid' : (isSameDay(d, today) ? ' due' : (d < today ? ' overdue' : ''))
-                    return (
-                      <li key={b.id} className={"day-bill" + status}>{b.name} ${(b.amount_cents / 100).toFixed(0)}</li>
-                    )
-                  })}
-                  {items.length > 3 && <li className="day-bill more">+{items.length - 3} more</li>}
-                </ul>
-              )}
-              {d && txCount > 0 && (
-                <div className="day-tx-count">{txCount} tx</div>
-              )}
-            </div>
-          )
-        })}
-      </div>
+      <div className="calendar-layout">
+        <section className="calendar-dossier">
+          <div className="calendar-controls">
+            <button type="button" className="btn btn-ghost" onClick={prev}>←</button>
+            <span className="calendar-month-label">{monthLabel}</span>
+            <button type="button" className="btn btn-ghost" onClick={next}>→</button>
+          </div>
+          <div className="calendar-grid">
+            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
+              <div key={d} className="calendar-weekday">{d}</div>
+            ))}
+            {days.map((d, i) => {
+              const key = formatKey(d)
+              const items = byDate[key] || []
+              const txCount = (txByDate[key] || []).length
+              const isToday = d && formatKey(new Date()) === key
+              const isSelected = d && key === selectedDateKey
+              const isSameDay = (a, b) => a && b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+              const today = new Date()
+              return (
+                <div
+                  key={i}
+                  className={`calendar-day ${!d ? 'empty' : ''} ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''}`}
+                  onClick={() => d && setSelectedDateKey(key)}
+                >
+                  {d && <span className="day-num">{d.getDate()}</span>}
+                  {d && items.length > 0 && (
+                    <ul className="day-bills">
+                      {items.slice(0, 3).map((b) => {
+                        const status = b.paid_at ? ' paid' : (isSameDay(d, today) ? ' due' : (d < today ? ' overdue' : ''))
+                        return (
+                          <li key={b.id} className={'day-bill' + status}>{b.name} ${(b.amount_cents / 100).toFixed(0)}</li>
+                        )
+                      })}
+                      {items.length > 3 && <li className="day-bill more">+{items.length - 3} more</li>}
+                    </ul>
+                  )}
+                  {d && txCount > 0 && (
+                    <div className="day-tx-count">{txCount} tx</div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </section>
 
-      <div className="transactions-list">
-        <h2 className="section-title">Transactions on {selectedDateKey}</h2>
+        <section className="transactions-list">
+          <h2 className="section-title">Transactions on {selectedDateKey}</h2>
         {txLoading ? (
           <div className="page-loading">Loading transactions...</div>
         ) : (
@@ -226,7 +233,7 @@ export default function Calendar() {
               const sign = isIncome ? '+' : '-'
               const amountStr = `${sign}${absAmount.toFixed(2)}$`
               return (
-                <div key={t.id} className="card tx-card">
+                <div key={t.id} className="tx-card">
                   <div className="tx-main">
                     <span className="tx-desc">{t.description || 'Transaction'}</span>
                     <span className={`tx-amount ${isIncome ? 'income' : 'spend'}`}>{amountStr}</span>
@@ -246,6 +253,7 @@ export default function Calendar() {
           <span className="pagination-info">Page {Math.floor(txOffset / txLimit) + 1} of {Math.max(1, Math.ceil(txCount / txLimit))}</span>
           <button type="button" className="btn btn-ghost" disabled={txOffset + txLimit >= txCount || txLoading} onClick={() => loadDayTransactions(selectedDateKey, txOffset + txLimit)}>Next</button>
         </div>
+        </section>
       </div>
 
       {showDueModal && (

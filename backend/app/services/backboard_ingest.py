@@ -5,6 +5,8 @@ import os
 import uuid
 from datetime import datetime, timedelta
 
+from app.services.user_context import get_user_financial_history
+
 logger = logging.getLogger(__name__)
 
 # Limits for snapshot size (plan: trim to last 90 days or 500 transactions)
@@ -39,7 +41,7 @@ def build_user_financial_snapshot(user_id: int) -> dict:
     goals = Goal.query.filter_by(user_id=user_id).all()
     wallets = Wallet.query.filter_by(user_id=user_id).all()
 
-    total_spend_cents = sum(t.amount_cents for t in transactions)
+    total_spend_cents = sum(abs(t.amount_cents) for t in transactions if t.amount_cents < 0)
     bill_total_cents = sum(b.amount_cents for b in bills)
     goal_target_cents = sum(g.target_cents for g in goals)
     goal_saved_cents = sum(g.saved_cents for g in goals)
@@ -117,9 +119,11 @@ def ingest_user_context_to_backboard(user_id: int, api_key: str) -> str | None:
 
     snapshot = build_user_financial_snapshot(user_id)
     solana = build_solana_snapshot(user_id)
+    user_financial_history = get_user_financial_history(user_id)
     payload = {
         "financial_snapshot": snapshot,
         "solana_summary": solana,
+        "user_financial_history": user_financial_history,
     }
     content = json.dumps(payload, default=str)
     file_name = f"user_financial_snapshot_{user_id}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}.json"
