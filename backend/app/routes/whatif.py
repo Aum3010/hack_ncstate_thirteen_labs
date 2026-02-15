@@ -205,6 +205,19 @@ def _llm_coach(core: dict, monthly_investment: float, extra_loan_payment: float)
     liq = core["liquidity"]
     pct = core["percentiles"]
     assump = core["assumptions"]
+    regime_key = (core.get("regime") or "balanced").lower().strip()
+    regime_map = {
+        "bull": "bull cycle",
+        "bull_cycle": "bull cycle",
+        "bear": "bear cycle",
+        "bear_cycle": "bear cycle",
+        "high_vol": "high volatility year",
+        "high_volatility": "high volatility year",
+        "crypto_winter": "crypto winter",
+        "winter": "crypto winter",
+        "balanced": "normal market conditions",
+    }
+    regime_label = regime_map.get(regime_key, "normal market conditions")
 
     base = _fallback_coach(core, monthly_investment)
 
@@ -215,16 +228,24 @@ def _llm_coach(core: dict, monthly_investment: float, extra_loan_payment: float)
         "liquidity_p10_months": liq["p10_months"],
         "liquidity_avg_months": liq["avg_months"],
         "liquidity_survival_prob": core.get("survival_prob", 0.0),
+        "recovery_years": core.get("recovery_years", 0.0),
         "net_worth_p10": pct["p10"],
         "net_worth_p50": pct["p50"],
         "net_worth_p90": pct["p90"],
         "horizon_years": assump["horizon_years"],
+        "regime": regime_label,
     }
 
     system_prompt = (
-        "You are a live, context-aware financial coach for an interactive dashboard. "
-        "Given the user's scenario metrics, you must output short, structured commentary in JSON only. "
-        "Do not ask questions or mention being an AI; speak directly about tradeoffs between savings rate and liquidity."
+        "You are a live, context-aware financial coach for an interactive 'urban noir' dashboard. "
+        "Imagine late-night city streets, slow jazz, and long coats under streetlights; your tone should be calm, cinematic, and precise, "
+        "not cheesy or theatrical. "
+        "Given the user's scenario metrics and market regime, you must output short, structured commentary in JSON only. "
+        "You are:\n"
+        "- Scenario-aware: speak directly to the concrete numbers (percentiles, liquidity months, survival probability, recovery time).\n"
+        "- Regime-aware: explicitly reference the current regime (e.g. bull cycle, bear cycle, high volatility year, crypto winter) and how it shapes risk.\n"
+        "- Comparative: contrast what this path looks like versus a more 'normal' environment (e.g. longer drawdowns, faster recoveries, more fragile liquidity).\n"
+        "Do not ask questions or mention being an AI; speak like a seasoned risk manager in a noir crime drama, but keep the language plain and professional."
     )
     user_prompt = (
         "Here is the current slider state and Monte Carlo summary as JSON:\n"
@@ -237,7 +258,12 @@ def _llm_coach(core: dict, monthly_investment: float, extra_loan_payment: float)
         '  "liquidity_months": number,\n'
         '  "tone": "strong" | "balanced" | "caution"\n'
         "}\n"
-        "Keep it concrete and quantitative. Highlight when liquidity falls below ~6 months."
+        "Keep it concrete and quantitative. Highlight when liquidity falls below ~6 months, how long recovery tends to take in this regime, "
+        "and what that means for the user in plain language. "
+        "For example, you might say things like: "
+        "\"In a bear cycle, allocating too aggressively leaves you with 0 months of liquidity; bear regimes often run 12–18 months, "
+        "which means you'd likely be forced to sell at depressed prices.\" "
+        "Always ground your lines in the provided numbers and the named regime."
     )
 
     # Groq path (JSON helper) when explicitly selected
@@ -326,6 +352,7 @@ def scenario():
         simulations=500,
         regime=regime,
     )
+    core["regime"] = regime
     coach = _llm_coach(core, monthly_investment, extra_loan_payment)
     core["coach"] = coach
     # For backwards compatibility/simple uses, also expose a flat explanation string
