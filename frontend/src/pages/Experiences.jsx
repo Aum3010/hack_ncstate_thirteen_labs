@@ -189,7 +189,11 @@ export default function Experiences() {
               {filteredExperiences.length === 0 ? (
                 <p className="text-muted">
                   {!data?.experiences?.length
-                    ? 'No experiences generated. Add GEMINI_API_KEY or BACKBOARD_API_KEY to the backend .env to enable AI suggestions.'
+                    ? data?.ai_status === 'no_api_key'
+                      ? 'No experiences generated. Add BACKBOARD_API_KEY to the project root .env (Docker) or backend/.env (local), then restart the backend.'
+                      : data?.ai_status === 'api_error'
+                        ? 'Suggestions temporarily unavailable. Check backend logs for details (e.g. Backboard API error).'
+                        : 'No experiences generated. Add BACKBOARD_API_KEY to the backend .env to enable AI suggestions.'
                     : 'No experiences in this tier.'}
                 </p>
               ) : (

@@ -60,9 +60,27 @@ def _call_backboard(prompt):
             timeout=60,
         )
         if not r.ok:
+            logger.warning("Backboard messages POST failed: status=%s body=%s", r.status_code, (r.text or "")[:400])
             return None
         out = r.json()
-        return out.get("content") or out.get("text") or out.get("response")
+        content = out.get("content") or out.get("text") or out.get("response")
+        if content:
+            return content
+        # Try nested shapes some APIs use
+        msg = out.get("message")
+        if not msg and out.get("messages"):
+            msgs = out.get("messages")
+            msg = msgs[-1] if msgs else {}
+        if isinstance(msg, dict):
+            content = msg.get("content") or msg.get("text") or msg.get("response")
+            if content:
+                return content
+        logger.warning(
+            "Backboard returned 200 but no content in response. Keys: %s. Snippet: %s",
+            list(out.keys()) if isinstance(out, dict) else type(out).__name__,
+            (str(out)[:300] if out else ""),
+        )
+        return None
     except Exception as e:
         logger.exception("Backboard call failed: %s", e)
         return None

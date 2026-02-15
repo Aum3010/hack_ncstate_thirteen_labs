@@ -1,59 +1,81 @@
 """AI-powered personalized experience suggestions for short-term budget.
 
-Uses bare-bones Gemini REST API (requests) - requires GEMINI_API_KEY or GOOGLE_API_KEY.
+Uses Backboard API: create assistant, create thread, send message (data=content per docs), parse JSON.
+Requires BACKBOARD_API_KEY.
 """
+import json
 import logging
 import os
-import json
+
 import requests
 
 from app.services.user_context import get_user_financial_history
 
 logger = logging.getLogger(__name__)
 
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
-GEMINI_TIMEOUT = 25
+BASE_URL = "https://app.backboard.io/api"
 
 
-def _call_gemini_rest(prompt: str, api_key: str) -> str | None:
-    """Call Gemini REST API, return generated text or None on failure."""
-    if not api_key:
-        return None
-    try:
-        url = f"{GEMINI_URL}?key={api_key}"
+def _backboard_completion(prompt: str, api_key: str) -> str | None:
+    """Single Backboard completion per docs: assistant -> thread -> message with data=content."""
+    headers = {"X-API-Key": api_key, "Content-Type": "application/json"}
+    base = (os.environ.get("BACKBOARD_API_BASE") or BASE_URL).rstrip("/")
+
+    # 1) Create assistant (or use existing)
+    assistant_id = os.environ.get("BACKBOARD_ASSISTANT_ID")
+    if not assistant_id:
         r = requests.post(
-            url,
-            json={"contents": [{"parts": [{"text": prompt}]}]},
-            headers={"Content-Type": "application/json"},
-            timeout=GEMINI_TIMEOUT,
+            f"{base}/assistants",
+            headers=headers,
+            json={
+                "name": "Experiences",
+                "system_prompt": "You respond only with valid JSON. No markdown, no code fences.",
+            },
+            timeout=30,
         )
         if not r.ok:
-            logger.warning("Gemini API error: status=%s body=%s", r.status_code, (r.text or "")[:300])
+            logger.warning("Backboard assistants: %s %s", r.status_code, (r.text or "")[:300])
             return None
-        data = r.json()
-        candidates = data.get("candidates") or []
-        if not candidates:
-            return None
-        parts = (candidates[0].get("content") or {}).get("parts") or []
-        if not parts:
-            return None
-        return (parts[0].get("text") or "").strip()
-    except requests.exceptions.RequestException as e:
-        logger.warning("Gemini API request failed: %s", e)
-        return None
-    except Exception as e:
-        logger.warning("Gemini API parse failed: %s", e)
+        assistant_id = r.json().get("assistant_id")
+    if not assistant_id:
         return None
 
+    # 2) Create thread
+    r = requests.post(
+        f"{base}/assistants/{assistant_id}/threads",
+        headers=headers,
+        json={},
+        timeout=30,
+    )
+    if not r.ok:
+        logger.warning("Backboard threads: %s %s", r.status_code, (r.text or "")[:300])
+        return None
+    thread_id = r.json().get("thread_id")
+    if not thread_id:
+        return None
 
-def _call_gemini_for_experiences(
+    # 3) Send message — docs: data={"content": "Hello!", "stream": "false"}
+    r = requests.post(
+        f"{base}/threads/{thread_id}/messages",
+        headers={"X-API-Key": api_key},
+        data={"content": prompt, "stream": "false"},
+        timeout=60,
+    )
+    if not r.ok:
+        logger.warning("Backboard messages: %s %s", r.status_code, (r.text or "")[:300])
+        return None
+    out = r.json()
+    return out.get("content") or out.get("text") or out.get("response")
+
+
+def _call_backboard_for_experiences(
     context: str, location: str, remaining_budget_dollars: float
-) -> list[dict]:
-    """Call Gemini with user context, return list of experience dicts."""
-    api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-    if not api_key:
-        logger.info("Experiences: no GEMINI_API_KEY or GOOGLE_API_KEY set")
-        return []
+) -> tuple[list[dict], str]:
+    api_key = os.environ.get("BACKBOARD_API_KEY", "")
+    if not api_key or not api_key.strip():
+        logger.warning("Experiences: BACKBOARD_API_KEY not set.")
+        return [], "no_api_key"
+
     loc_hint = (
         f" Focus on experiences in or near: {location}." if location else " Suggest experiences for a general urban area."
     )
@@ -77,17 +99,19 @@ def _call_gemini_for_experiences(
         "Context:\n"
         + context
     )
-    text = _call_gemini_rest(prompt, api_key)
+
+    text = _backboard_completion(prompt, api_key)
     if not text:
-        return []
+        return [], "api_error"
+
+    text = text.removeprefix("```json").removeprefix("```").strip().removesuffix("```").strip()
     try:
-        text = text.removeprefix("```json").removeprefix("```").strip().removesuffix("```").strip()
         out = json.loads(text)
-    except json.JSONDecodeError as e:
-        logger.warning("Experiences: failed to parse Gemini JSON: %s", e)
-        return []
+    except json.JSONDecodeError:
+        return [], "api_error"
     if not isinstance(out, list):
-        return []
+        return [], "api_error"
+
     result = []
     for exp in out[:16]:
         if not isinstance(exp, dict):
@@ -109,14 +133,10 @@ def _call_gemini_for_experiences(
             "lat": float(exp.get("lat", 40.7128)),
             "lng": float(exp.get("lng", -74.0060)),
         })
-    return result
+    return result, "ok"
 
 
-def generate_experiences(user_id: int, location: str | None, budget_cents: int) -> list[dict]:
-    """
-    Generate personalized experiences for the user.
-    Returns list of experience dicts. Uses Gemini REST API directly.
-    """
+def generate_experiences(user_id: int, location: str | None, budget_cents: int) -> tuple[list[dict], str]:
     history = get_user_financial_history(user_id)
     lines = []
     onboarding = history.get("onboarding_answers") or {}
@@ -130,9 +150,9 @@ def generate_experiences(user_id: int, location: str | None, budget_cents: int) 
     context = "\n".join(lines)
     remaining_dollars = budget_cents / 100.0
     if remaining_dollars <= 0:
-        remaining_dollars = 50.0  # fallback for empty budget
+        remaining_dollars = 50.0
     try:
-        return _call_gemini_for_experiences(context, location or "", remaining_dollars)
+        return _call_backboard_for_experiences(context, location or "", remaining_dollars)
     except Exception as e:
-        logger.warning("Experiences generation failed: %s", e)
-        return []
+        logger.warning("Experiences failed: %s", e)
+        return [], "api_error"
