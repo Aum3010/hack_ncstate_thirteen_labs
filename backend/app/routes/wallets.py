@@ -1,8 +1,10 @@
+import os
 from flask import Blueprint, jsonify
 from app import db
 from app.routes.auth import get_current_user_id
 from app.models import Wallet, Transaction
 from app.services.solana import fetch_and_normalize_transactions
+from app.services.backboard_ingest import ingest_user_context_to_backboard
 
 wallets_bp = Blueprint("wallets", __name__)
 
@@ -32,6 +34,9 @@ def sync_wallet(wallet_id):
             rec = Transaction(**t)
             db.session.add(rec)
         db.session.commit()
+        api_key = os.environ.get("BACKBOARD_API_KEY", "")
+        if api_key:
+            ingest_user_context_to_backboard(uid, api_key)
         return jsonify({"message": "Synced", "imported": len(txns), "wallet": wallet.to_dict()})
     except Exception as e:
         db.session.rollback()

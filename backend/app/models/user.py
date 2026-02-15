@@ -20,6 +20,8 @@ class User(db.Model):
     presage_user_id = db.Column(db.String(255), nullable=True)
     partition_config = db.Column(db.JSON, nullable=True)
     onboarding_completed = db.Column(db.Boolean, default=False)
+    assistant_mode = db.Column(db.String(32), nullable=True, default="balanced")
+    backboard_thread_id = db.Column(db.String(255), nullable=True, index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -49,5 +51,6 @@ class User(db.Model):
             "has_presage": bool(self.presage_user_id),
             "partition_config": self.get_partition_config(),
             "onboarding_completed": self.onboarding_completed or False,
+            "assistant_mode": self.assistant_mode or "balanced",
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
