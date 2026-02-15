@@ -68,6 +68,7 @@ export default function Profile({ user, onUpdate, embedded }) {
     long_term_goal: user?.profile_questionnaire?.long_term_goal ?? '',
     crypto_use: user?.profile_questionnaire?.crypto_use ?? '',
     timezone: user?.profile_questionnaire?.timezone ?? '',
+    city_or_area: user?.profile_questionnaire?.city_or_area ?? '',
     anything_else: user?.profile_questionnaire?.anything_else ?? '',
   }))
   const [saving, setSaving] = useState(false)
@@ -101,6 +102,7 @@ export default function Profile({ user, onUpdate, embedded }) {
       long_term_goal: user?.profile_questionnaire?.long_term_goal ?? '',
       crypto_use: user?.profile_questionnaire?.crypto_use ?? '',
       timezone: user?.profile_questionnaire?.timezone ?? '',
+      city_or_area: user?.profile_questionnaire?.city_or_area ?? '',
       anything_else: user?.profile_questionnaire?.anything_else ?? '',
     })
   }, [user?.profile_questionnaire])
@@ -192,6 +194,7 @@ export default function Profile({ user, onUpdate, embedded }) {
           long_term_goal: (profileQuestionnaire.long_term_goal || '').trim() || undefined,
           crypto_use: profileQuestionnaire.crypto_use || undefined,
           timezone: (profileQuestionnaire.timezone || '').trim() || undefined,
+          city_or_area: (profileQuestionnaire.city_or_area || '').trim() || undefined,
           anything_else: (profileQuestionnaire.anything_else || '').trim() || undefined,
         },
       })
@@ -421,6 +424,14 @@ export default function Profile({ user, onUpdate, embedded }) {
             placeholder="Timezone (e.g. America/New_York)"
             value={profileQuestionnaire.timezone}
             onChange={(e) => setProfileQuestionnaire((q) => ({ ...q, timezone: e.target.value }))}
+            style={{ marginTop: '0.5rem' }}
+          />
+          <input
+            className="input"
+            type="text"
+            placeholder="City or area (e.g. Mumbai, San Francisco)"
+            value={profileQuestionnaire.city_or_area}
+            onChange={(e) => setProfileQuestionnaire((q) => ({ ...q, city_or_area: e.target.value }))}
             style={{ marginTop: '0.5rem' }}
           />
           <input

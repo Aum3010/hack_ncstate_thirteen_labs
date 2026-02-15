@@ -2,19 +2,21 @@ import React, { useState } from 'react'
 import { portfolioChat } from '../api/portfolio'
 import { listTransactions } from '../api/transactions'
 import { listGoals } from '../api/goals'
+import useVoiceAssistant from '../hooks/useVoiceAssistant'
 
 export default function PortfolioChat({ mode, portfolio = null }) {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const { micState, assistantAudio, voiceError, toggleRecording, speakText } = useVoiceAssistant()
 
-  const send = async () => {
-    const msg = input.trim()
+  const send = async (textOverride = null) => {
+    const msg = (textOverride ?? input).trim()
     if (!msg) return
     const userMessage = { role: 'user', content: msg }
     const nextMessages = [...messages, userMessage]
     setMessages(nextMessages)
-    setInput('')
+    if (textOverride == null) setInput('')
     setLoading(true)
     try {
       const [txData, goals] = await Promise.all([
@@ -38,12 +40,29 @@ export default function PortfolioChat({ mode, portfolio = null }) {
         spending: Object.entries(spendingByCategory).map(([category, amount_cents]) => ({ category, amount_cents })),
         savings: goals,
       })
-      setMessages((prev) => [...prev, { role: 'assistant', content: data.text || 'No response.' }])
+      const assistantText = data.text || 'No response.'
+      setMessages((prev) => [...prev, { role: 'assistant', content: assistantText }])
+      if (assistantText) {
+        speakText(assistantText).catch(() => {})
+      }
     } catch (err) {
       setMessages((prev) => [...prev, { role: 'assistant', content: 'Error: ' + err.message }])
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleVoiceInput = async () => {
+    await toggleRecording(async (transcript) => {
+      setInput(transcript)
+      await send(transcript)
+    }, 7000)
+  }
+
+  const handleSpeakInput = async () => {
+    const text = input.trim()
+    if (!text) return
+    await speakText(text).catch(() => {})
   }
 
   return (
@@ -74,10 +93,31 @@ export default function PortfolioChat({ mode, portfolio = null }) {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && send()}
         />
-        <button type="button" className="btn btn-primary" onClick={send} disabled={loading || !input.trim()}>
+        <button
+          type="button"
+          className={`btn btn-primary portfolio-chat-mic ${micState === 'recording' ? 'portfolio-chat-mic-recording' : ''}`}
+          onClick={handleVoiceInput}
+          disabled={loading || micState === 'processing'}
+          aria-label="Voice input"
+          title={micState === 'recording' ? 'Stop recording' : micState === 'processing' ? 'Processing voice' : 'Voice input'}
+        >
+          {micState === 'recording' ? '■' : micState === 'processing' ? '...' : '🎤'}
+        </button>
+        <button
+          type="button"
+          className="btn btn-primary portfolio-chat-speak"
+          onClick={handleSpeakInput}
+          disabled={loading || micState === 'processing' || assistantAudio === 'playing' || !input.trim()}
+          aria-label="Speak text"
+          title={assistantAudio === 'playing' ? 'Playing audio' : 'Speak typed text'}
+        >
+          {assistantAudio === 'playing' ? '...' : '🔊'}
+        </button>
+        <button type="button" className="btn btn-primary" onClick={() => send()} disabled={loading || micState === 'processing' || !input.trim()}>
           {loading ? '...' : 'Send'}
         </button>
       </div>
+      {voiceError ? <p className="portfolio-voice-error">{voiceError}</p> : null}
     </div>
   )
 }

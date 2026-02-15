@@ -5,6 +5,7 @@ import iconUrl from 'leaflet/dist/images/marker-icon.png'
 import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png'
 import shadowUrl from 'leaflet/dist/images/marker-shadow.png'
 import { getExperiences } from '../api/experiences'
+import { getProfile } from '../api/users'
 import 'leaflet/dist/leaflet.css'
 
 delete L.Icon.Default.prototype._getIconUrl
@@ -81,6 +82,20 @@ export default function Experiences() {
   useEffect(() => {
     load(location || undefined)
   }, [])
+
+  useEffect(() => {
+    const saved = localStorage.getItem('experiences_location')
+    if (saved) return
+    getProfile()
+      .then((user) => {
+        const city = (user?.profile_questionnaire?.city_or_area || '').trim()
+        if (city) {
+          setLocation(city)
+          load(city)
+        }
+      })
+      .catch(() => {})
+  }, [load])
 
   const handleLocationSubmit = (e) => {
     e.preventDefault()

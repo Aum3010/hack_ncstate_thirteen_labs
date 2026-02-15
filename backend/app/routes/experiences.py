@@ -83,7 +83,10 @@ def get_experiences():
     location = request.args.get("location", "")
     total_cents, spent_cents, remaining_cents = _compute_short_term_budget(uid)
 
-    experiences = generate_experiences(uid, location.strip() or None, remaining_cents)
+    try:
+        experiences = generate_experiences(uid, location.strip() or None, remaining_cents)
+    except Exception:
+        experiences = []
 
     tiers = {"free": [], "$": [], "$$": [], "$$$": []}
     for exp in experiences:

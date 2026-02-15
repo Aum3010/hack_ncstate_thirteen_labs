@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 import './ChatBar.css'
 
-const API = import.meta.env.VITE_API_URL || ''
+import { API } from '../api/config'
+import useVoiceAssistant from '../hooks/useVoiceAssistant'
 const MODES = [
   { value: 'conservative', label: 'Conservative' },
   { value: 'balanced', label: 'Balanced' },
@@ -23,6 +24,7 @@ export default function ChatBar() {
   const [loading, setLoading] = useState(false)
   const [mode, setMode] = useState('balanced')
   const threadEndRef = useRef(null)
+  const { micState, assistantAudio, voiceError, toggleRecording, speakText } = useVoiceAssistant()
 
   useEffect(() => {
     fetch(`${API}/api/users/me`, { credentials: 'include' })
@@ -49,11 +51,11 @@ export default function ChatBar() {
 
   const CHAT_TIMEOUT_MS = 60000
 
-  const send = async () => {
-    const msg = input.trim()
+  const send = async (textOverride = null) => {
+    const msg = (textOverride ?? input).trim()
     if (!msg) return
     const page = routeToPage(location.pathname)
-    setInput('')
+    if (textOverride == null) setInput('')
     setMessages((prev) => [...prev, { role: 'user', text: msg }])
     setLoading(true)
     const controller = new AbortController()
@@ -72,6 +74,9 @@ export default function ChatBar() {
         ? (data.text || data.error || 'No response.')
         : (data.error || data.text || res.statusText || 'Chat failed')
       setMessages((prev) => [...prev, { role: 'assistant', text: replyText }])
+      if (res.ok && replyText) {
+        speakText(replyText).catch(() => {})
+      }
     } catch (e) {
       clearTimeout(timeoutId)
       const errorMsg = e.name === 'AbortError'
@@ -81,6 +86,19 @@ export default function ChatBar() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleVoiceInput = async () => {
+    await toggleRecording(async (transcript) => {
+      setInput(transcript)
+      await send(transcript)
+    }, 7000)
+  }
+
+  const handleSpeakInput = async () => {
+    const text = input.trim()
+    if (!text) return
+    await speakText(text).catch(() => {})
   }
 
   return (
@@ -136,13 +154,34 @@ export default function ChatBar() {
         />
         <button
           type="button"
+          className={`btn btn-ember chatbar-send chatbar-mic ${micState === 'recording' ? 'chatbar-mic-recording' : ''}`}
+          onClick={handleVoiceInput}
+          disabled={loading || micState === 'processing'}
+          aria-label="Voice input"
+          title={micState === 'recording' ? 'Stop recording' : micState === 'processing' ? 'Processing voice' : 'Voice input'}
+        >
+          {micState === 'recording' ? '■' : micState === 'processing' ? '...' : '🎤'}
+        </button>
+        <button
+          type="button"
+          className="btn btn-ember chatbar-send chatbar-speak"
+          onClick={handleSpeakInput}
+          disabled={loading || micState === 'processing' || assistantAudio === 'playing' || !input.trim()}
+          aria-label="Speak text"
+          title={assistantAudio === 'playing' ? 'Playing audio' : 'Speak typed text'}
+        >
+          {assistantAudio === 'playing' ? '...' : '🔊'}
+        </button>
+        <button
+          type="button"
           className="btn btn-ember chatbar-send"
-          onClick={send}
-          disabled={loading || !input.trim()}
+          onClick={() => send()}
+          disabled={loading || micState === 'processing' || !input.trim()}
         >
           {loading ? '...' : 'Send'}
         </button>
       </div>
+      {voiceError ? <div className="chatbar-voice-error">{voiceError}</div> : null}
     </div>
   )
 }
