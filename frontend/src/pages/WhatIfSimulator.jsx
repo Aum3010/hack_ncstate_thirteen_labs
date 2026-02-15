@@ -1,5 +1,24 @@
-import React, { useMemo, useState } from 'react'
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+  BarChart,
+  Bar,
+} from 'recharts'
 import './WhatIfSimulator.css'
+import { getScenarioIntelligence, getWhatIfConfig } from '../api/whatif'
 
 const FI_TARGET_CAPITAL = 600_000
 const LOAN_PRINCIPAL = 10_000
@@ -7,12 +26,6 @@ const LOAN_ANNUAL_RATE = 0.1
 const LOAN_MIN_PAYMENT = 250
 const BASE_MONTHLY_INVESTMENT = 300
 const BASE_DISCRETIONARY_SPEND = 1_000
-
-const RISK_PROFILES = [
-  { id: 0, key: 'conservative', label: 'Conservative', annualReturn: 0.04 },
-  { id: 1, key: 'balanced', label: 'Balanced', annualReturn: 0.07 },
-  { id: 2, key: 'aggressive', label: 'Aggressive', annualReturn: 0.1 },
-]
 
 function formatCurrency(amount) {
   const sign = amount < 0 ? '-' : ''
@@ -26,152 +39,18 @@ function formatMonthsToYears(months) {
   return `${years.toFixed(1)} yrs`
 }
 
-function getRiskScore(inputs, result) {
-  const {
-    monthlyInvestment,
-    extraLoanPayment,
-    discretionaryReductionPct,
-    stakedPct,
-    riskProfileId,
-  } = inputs
-  const { interestSaved, payoffShiftMonths } = result
-
-  let score = 0
-
-  if (riskProfileId === 0) score += 10
-  if (riskProfileId === 1) score += 35
-  if (riskProfileId === 2) score += 60
-
-  if (stakedPct > 40) {
-    score += (stakedPct - 40) * 0.6
-  } else if (stakedPct < 20) {
-    score -= 5
-  }
-
-  if (discretionaryReductionPct >= 15) {
-    score -= 10
-  } else if (discretionaryReductionPct <= 5) {
-    score += 10
-  }
-
-  if (monthlyInvestment < BASE_MONTHLY_INVESTMENT && riskProfileId >= 1) {
-    score += 10
-  } else if (monthlyInvestment >= BASE_MONTHLY_INVESTMENT + 200) {
-    score -= 5
-  }
-
-  if (extraLoanPayment >= 200) {
-    score -= 10
-  } else if (extraLoanPayment === 0 && payoffShiftMonths <= 0 && interestSaved <= 100) {
-    score += 5
-  }
-
-  const clamped = Math.max(0, Math.min(100, Math.round(score)))
-
-  let band = 'low'
-  if (clamped >= 25 && clamped < 50) band = 'medium'
-  else if (clamped >= 50 && clamped < 75) band = 'high'
-  else if (clamped >= 75) band = 'unsustainable'
-
-  return { score: clamped, band }
-}
-
-function getAgentVerdict(inputs, result) {
-  const {
-    monthlyInvestment,
-    extraLoanPayment,
-    discretionaryReductionPct,
-    stakedPct,
-    riskProfileId,
-  } = inputs
-
-  const { netWorthDelta, interestSaved, compoundingGain, payoffShiftMonths } = result
-
-  const isDebtFocused = extraLoanPayment > 0 && interestSaved > 0
-  const isAggressiveInvestor =
-    monthlyInvestment > BASE_MONTHLY_INVESTMENT + 150 ||
-    discretionaryReductionPct >= 15 ||
-    riskProfileId === 2
-  const isHeavierStaking = stakedPct >= 60
-
-  if (isDebtFocused && interestSaved > 1500 && netWorthDelta >= 0) {
-    return {
-      level: 'strong',
-      title: 'Strong Optimization',
-      description:
-        'Extra payments are rapidly reducing high-interest debt while keeping your long-term net worth on track. This is a financially efficient allocation of cash flow.',
-    }
-  }
-
-  if (isDebtFocused && netWorthDelta < 0) {
-    return {
-      level: 'moderate',
-      title: 'Moderate Strategy',
-      description:
-        'You are accelerating loan payoff but sacrificing some investment compounding. This can be good for risk reduction, but long-term wealth growth may slow slightly.',
-    }
-  }
-
-  if (isAggressiveInvestor && netWorthDelta > 0 && compoundingGain > 0) {
-    return {
-      level: 'growth',
-      title: 'Growth-Oriented Plan',
-      description:
-        'Higher contributions and risk are increasing your projected net worth. Ensure you are comfortable with the added volatility and that emergency cash needs are covered.',
-    }
-  }
-
-  if (payoffShiftMonths > 0 && interestSaved > 0) {
-    return {
-      level: 'balanced',
-      title: 'Balanced Improvement',
-      description:
-        'Your adjustments modestly improve both debt payoff speed and total interest paid, without radically changing risk. It is a sensible incremental upgrade.',
-    }
-  }
-
-  if (netWorthDelta > 0) {
-    return {
-      level: 'lean-positive',
-      title: 'Slightly Optimized',
-      description:
-        'Your scenario improves projected net worth versus the baseline. The gains are modest but directionally positive.',
-    }
-  }
-
-  if (netWorthDelta < 0) {
-    return {
-      level: 'caution',
-      title: 'Caution: Potential Trade-Off',
-      description:
-        'Your current settings reduce projected long-term net worth compared to the baseline. Consider rebalancing between debt payoff, risk, and contributions.',
-    }
-  }
-
-  return {
-    level: 'neutral',
-    title: 'Neutral Impact',
-    description:
-      'These settings behave very close to your baseline plan. Adjust contributions, risk, or loan payments more aggressively to see a clearer effect.',
-  }
-}
-
 function simulateScenario({
   monthlyInvestment,
-  extraLoanPayment,
+  interestRate,
   discretionaryReductionPct,
-  stakedPct,
-  riskProfileId,
   horizonYears,
 }) {
   const months = horizonYears * 12
 
-  const risk = RISK_PROFILES.find((r) => r.id === riskProfileId) || RISK_PROFILES[1]
-  const stakingBoost = (stakedPct / 100) * 0.01
-  const annualReturn = risk.annualReturn + stakingBoost
+  const annualReturn = (interestRate ?? 7) / 100
   const monthlyReturn = annualReturn / 12
 
-  const baselineAnnualReturn = RISK_PROFILES[1].annualReturn
+  const baselineAnnualReturn = 0.07
   const baselineMonthlyReturn = baselineAnnualReturn / 12
 
   let investBalanceBaseline = 0
@@ -189,16 +68,17 @@ function simulateScenario({
 
   let loanPaidMonthBaseline = null
   let loanPaidMonthScenario = null
+  const netWorthTimeline = []
 
   for (let m = 1; m <= months; m += 1) {
     const baselineLoanPayment = loanBalanceBaseline > 0 ? LOAN_MIN_PAYMENT : 0
-    const scenarioLoanPayment = loanBalanceScenario > 0 ? LOAN_MIN_PAYMENT + extraLoanPayment : 0
+    const scenarioLoanPayment = loanBalanceScenario > 0 ? LOAN_MIN_PAYMENT : 0
 
     const investFlowBaseline = BASE_MONTHLY_INVESTMENT + (loanBalanceBaseline <= 0 ? LOAN_MIN_PAYMENT : 0)
     const investFlowScenario =
       monthlyInvestment +
       discSavings +
-      (loanBalanceScenario <= 0 ? LOAN_MIN_PAYMENT + extraLoanPayment : 0)
+      (loanBalanceScenario <= 0 ? LOAN_MIN_PAYMENT : 0)
 
     contributionsBaseline += investFlowBaseline
     contributionsScenario += investFlowScenario
@@ -226,12 +106,22 @@ function simulateScenario({
       }
     }
 
+    const netWorthBaselineMonth = investBalanceBaseline - loanBalanceBaseline
+    const netWorthScenarioMonth = investBalanceScenario - loanBalanceScenario
+
     if (monthsToFiBaseline === null && investBalanceBaseline >= FI_TARGET_CAPITAL) {
       monthsToFiBaseline = m
     }
     if (monthsToFiScenario === null && investBalanceScenario >= FI_TARGET_CAPITAL) {
       monthsToFiScenario = m
     }
+
+    netWorthTimeline.push({
+      month: m,
+      netWorth: netWorthScenarioMonth,
+      assets: investBalanceScenario,
+      liabilities: loanBalanceScenario,
+    })
   }
 
   const netWorthBaseline = investBalanceBaseline - loanBalanceBaseline
@@ -254,7 +144,6 @@ function simulateScenario({
 
   return {
     netWorthDelta,
-    netWorthBaseline,
     netWorthScenario,
     interestSaved,
     payoffShiftMonths,
@@ -262,76 +151,122 @@ function simulateScenario({
     monthsToFiScenario,
     fiShiftMonths,
     compoundingGain,
+    assetsScenario: investBalanceScenario,
+    liabilitiesScenario: loanBalanceScenario,
+    netWorthTimeline,
   }
 }
 
 export default function WhatIfSimulator() {
   const [monthlyInvestment, setMonthlyInvestment] = useState(450)
-  const [extraLoanPayment, setExtraLoanPayment] = useState(200)
+  const [interestRate, setInterestRate] = useState(7)
   const [discretionaryReductionPct] = useState(0)
-  const [stakedPct] = useState(50)
-  const [riskProfileId, setRiskProfileId] = useState(1)
-  const [primaryGoal, setPrimaryGoal] = useState('fi')
-  const [riskComfort, setRiskComfort] = useState('balanced')
   const [horizonYears, setHorizonYears] = useState(10)
 
   const result = useMemo(
     () =>
       simulateScenario({
         monthlyInvestment,
-        extraLoanPayment,
+        interestRate,
         discretionaryReductionPct,
-        stakedPct,
-        riskProfileId,
         horizonYears,
       }),
-    [monthlyInvestment, extraLoanPayment, discretionaryReductionPct, stakedPct, riskProfileId, horizonYears],
+    [monthlyInvestment, interestRate, discretionaryReductionPct, horizonYears],
   )
 
-  const riskProfile = RISK_PROFILES.find((r) => r.id === riskProfileId) || RISK_PROFILES[1]
-  const risk = useMemo(
-    () =>
-      getRiskScore(
-        { monthlyInvestment, extraLoanPayment, discretionaryReductionPct, stakedPct, riskProfileId },
-        result,
-      ),
-    [monthlyInvestment, extraLoanPayment, discretionaryReductionPct, stakedPct, riskProfileId, result],
-  )
-  const verdict = useMemo(
-    () =>
-      getAgentVerdict(
-        { monthlyInvestment, extraLoanPayment, discretionaryReductionPct, stakedPct, riskProfileId },
-        result,
-      ),
-    [monthlyInvestment, extraLoanPayment, discretionaryReductionPct, stakedPct, riskProfileId, result],
-  )
-  const targetLabelYears = horizonYears
+  const totalNetWorth = result.netWorthScenario || 0
+  const totalAssets = result.assetsScenario || 0
+  const totalLiabilities = result.liabilitiesScenario || 0
+  const liquidAssets = totalAssets * 0.6
+  const illiquidAssets = totalAssets - liquidAssets
+  const liquidPct = totalAssets ? (liquidAssets / totalAssets) * 100 : 0
+  const illiquidPct = totalAssets ? (illiquidAssets / totalAssets) * 100 : 0
 
-  React.useEffect(() => {
-    if (riskComfort === 'safety') {
-      setRiskProfileId(0)
-    } else if (riskComfort === 'balanced') {
-      setRiskProfileId(1)
-    } else {
-      setRiskProfileId(2)
+  const totalMonths = horizonYears * 12
+  const avgMonthlyNetWorthGrowth = totalMonths ? totalNetWorth / totalMonths : 0
+  const avgYearlyNetWorthGrowth = horizonYears ? totalNetWorth / horizonYears : 0
+
+  const netWorthChartData = result.netWorthTimeline || []
+
+  const assetAllocationData = [
+    { name: 'Liquid', value: liquidAssets },
+    { name: 'Illiquid', value: illiquidAssets },
+  ]
+
+  const debtVsAssetData = [
+    {
+      name: 'Scenario',
+      assets: totalAssets,
+      liabilities: totalLiabilities,
+    },
+  ]
+
+  const extraLoanPayment = 200
+  const [scenarioDist, setScenarioDist] = useState([])
+  const [scenarioPct, setScenarioPct] = useState(null)
+  const [scenarioLiquidity, setScenarioLiquidity] = useState(null)
+  const [scenarioDebtFreedomYears, setScenarioDebtFreedomYears] = useState(null)
+  const [scenarioCoach, setScenarioCoach] = useState(null)
+  const [scenarioLoading, setScenarioLoading] = useState(false)
+  const [scenarioError, setScenarioError] = useState('')
+  const [llmConfig, setLlmConfig] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadConfig() {
+      try {
+        const cfg = await getWhatIfConfig()
+        if (!cancelled) setLlmConfig(cfg)
+      } catch {
+        if (!cancelled) setLlmConfig(null)
+      }
     }
-  }, [riskComfort])
-
-  React.useEffect(() => {
-    if (primaryGoal === 'fi') {
-      setMonthlyInvestment(450)
-      setExtraLoanPayment(200)
-    } else if (primaryGoal === 'debt_fast') {
-      setMonthlyInvestment(250)
-      setExtraLoanPayment(400)
-    } else if (primaryGoal === 'growth') {
-      setMonthlyInvestment(600)
-      setExtraLoanPayment(150)
-    } else if (primaryGoal === 'preserve') {
-      setMonthlyInvestment(350)
-      setExtraLoanPayment(250)
+    loadConfig()
+    return () => {
+      cancelled = true
     }
-  }, [primaryGoal])
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    const timeout = setTimeout(async () => {
+      setScenarioLoading(true)
+      setScenarioError('')
+      try {
+        const data = await getScenarioIntelligence({
+          monthlyInvestment,
+          extraLoanPayment,
+          horizonYears,
+        })
+        if (cancelled) return
+        setScenarioDist(data.distribution || [])
+        setScenarioPct(data.percentiles || null)
+        setScenarioLiquidity(data.liquidity || null)
+        setScenarioDebtFreedomYears(
+          typeof data.debt_freedom_years === 'number' ? data.debt_freedom_years : null,
+        )
+        setScenarioCoach(data.coach || null)
+      } catch (err) {
+        if (!cancelled) {
+          setScenarioError('Unable to load scenario intelligence right now.')
+        }
+      } finally {
+        if (!cancelled) setScenarioLoading(false)
+      }
+    }, 250)
+    return () => {
+      cancelled = true
+      clearTimeout(timeout)
+    }
+  }, [monthlyInvestment, extraLoanPayment, horizonYears])
+
+  const medianOutcome = scenarioPct?.p50 ?? null
+  const worstOutcome = scenarioPct?.p10 ?? null
+  const bestOutcome = scenarioPct?.p90 ?? null
+  const stressProbPct = scenarioLiquidity
+    ? Math.round((scenarioLiquidity.stress_prob || 0) * 100)
+    : null
+  const debtFreedomYears = scenarioDebtFreedomYears
 
 
   return (
@@ -339,36 +274,31 @@ export default function WhatIfSimulator() {
       <div className="card sim-hero">
         <div className="sim-hero-main">
           <div>
-            <h1 className="page-title">Vault Simulation Console</h1>
+            <h1 className="page-title">Scenario Intelligence</h1>
             <p className="text-muted sim-subtitle">
-              Live what-if engine for your Solana-powered finances.
+              Here&apos;s how many possible futures play out as you move the sliders.
             </p>
           </div>
           <div className="sim-hero-right">
             <div className="sim-hero-growth-value">
-              {formatCurrency(result.netWorthDelta)}
+              {formatCurrency(totalNetWorth)}
             </div>
             <div className="sim-hero-growth-label">
-              Projected growth ({targetLabelYears}
+              Median projected net worth (
+              {horizonYears}
               {' '}
               yrs)
             </div>
-            <div className="sim-hero-status">
-              <div
-                className={
-                  'sim-status-badge ' +
-                  (risk.band === 'low'
-                    ? 'sim-status-stable'
-                    : risk.band === 'unsustainable'
-                      ? 'sim-status-unstable'
-                      : 'sim-status-elevated')
-                }
-              >
-                {risk.band === 'low' && '🟢 System stable'}
-                {(risk.band === 'medium' || risk.band === 'high') && '🟡 Elevated risk'}
-                {risk.band === 'unsustainable' && '🔴 Instability detected'}
+            {llmConfig && (
+              <div className="sim-hero-model text-muted">
+                AI model:
+                {' '}
+                {llmConfig.provider === 'groq'
+                  ? `Groq · ${llmConfig.groq_model}`
+                  : llmConfig.provider}
+                {!llmConfig.groq_ready && llmConfig.provider === 'groq' && ' (key missing)'}
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
@@ -379,128 +309,90 @@ export default function WhatIfSimulator() {
 
           <div className="sim-control">
             <div className="sim-control-header">
-              <span className="sim-control-label">How much can you realistically invest per month?</span>
+              <span className="sim-control-label">Monthly investment</span>
               <span className="sim-control-value">{formatCurrency(monthlyInvestment)}</span>
             </div>
             <input
               type="range"
-              min="100"
-              max="2000"
-              step="50"
+              min="0"
+              max="500000"
+              step="100"
               value={monthlyInvestment}
               onChange={(e) => setMonthlyInvestment(Number(e.target.value))}
             />
-            <p className="sim-help text-muted">
-              This is how much you&apos;re comfortable routing into investments each month.
-            </p>
-          </div>
-
-          <div className="sim-control">
-            <div className="sim-control-header">
-              <span className="sim-control-label">Extra loan payment</span>
-              <span className="sim-control-value">{formatCurrency(extraLoanPayment)}</span>
+            <div style={{ marginTop: '0.35rem' }}>
+              <input
+                type="number"
+                min="0"
+                max="500000"
+                step="100"
+                value={monthlyInvestment}
+                onChange={(e) => {
+                  const v = Number(e.target.value)
+                  if (Number.isNaN(v)) return
+                  const clamped = Math.min(500000, Math.max(0, v))
+                  setMonthlyInvestment(clamped)
+                }}
+                style={{
+                  width: '110px',
+                  padding: '0.25rem 0.4rem',
+                  background: 'var(--bg-elevated)',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text)',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '0.8rem',
+                }}
+              />
             </div>
-            <input
-              type="range"
-              min="0"
-              max="1000"
-              step="25"
-              value={extraLoanPayment}
-              onChange={(e) => setExtraLoanPayment(Number(e.target.value))}
-            />
             <p className="sim-help text-muted">
-              Extra amount on top of a {formatCurrency(LOAN_MIN_PAYMENT)} baseline payment toward a sample{' '}
-              {formatCurrency(LOAN_PRINCIPAL)} loan at {(LOAN_ANNUAL_RATE * 100).toFixed(1)}% APR.
+              How much you invest into assets each month.
             </p>
           </div>
 
           <div className="sim-control">
             <div className="sim-control-header">
-              <span className="sim-control-label">Primary financial goal</span>
+              <span className="sim-control-label">Interest gained (annual)</span>
               <span className="sim-control-value">
-                {primaryGoal === 'fi' && 'Financial independence'}
-                {primaryGoal === 'debt_fast' && 'Pay off debt fast'}
-                {primaryGoal === 'growth' && 'Wealth growth'}
-                {primaryGoal === 'preserve' && 'Capital preservation'}
+                {interestRate.toFixed(1)}
+                %
               </span>
             </div>
-            <div className="sim-toggle-group">
-              <button
-                type="button"
-                className={`sim-toggle ${primaryGoal === 'fi' ? 'active' : ''}`}
-                onClick={() => setPrimaryGoal('fi')}
-              >
-                Financial independence
-              </button>
-              <button
-                type="button"
-                className={`sim-toggle ${primaryGoal === 'debt_fast' ? 'active' : ''}`}
-                onClick={() => setPrimaryGoal('debt_fast')}
-              >
-                Pay off debt fast
-              </button>
-              <button
-                type="button"
-                className={`sim-toggle ${primaryGoal === 'growth' ? 'active' : ''}`}
-                onClick={() => setPrimaryGoal('growth')}
-              >
-                Wealth growth
-              </button>
-              <button
-                type="button"
-                className={`sim-toggle ${primaryGoal === 'preserve' ? 'active' : ''}`}
-                onClick={() => setPrimaryGoal('preserve')}
-              >
-                Capital preservation
-              </button>
-            </div>
             <p className="sim-help text-muted">
-              Tell the simulator what you care about most so it can interpret trade-offs correctly.
+              Expected annual return you want to test for this scenario. Baseline model assumes around 7%.
             </p>
-          </div>
-
-          <div className="sim-control">
-            <div className="sim-control-header">
-              <span className="sim-control-label">Risk comfort level</span>
-              <span className="sim-control-value">
-                {riskComfort === 'safety' && 'Safety'}
-                {riskComfort === 'balanced' && 'Balanced'}
-                {riskComfort === 'growth' && 'Growth'}
-              </span>
+            <div style={{ marginTop: '0.35rem' }}>
+              <input
+                type="number"
+                min="0"
+                max="50"
+                step="0.5"
+                value={interestRate}
+                onChange={(e) => {
+                  const v = Number(e.target.value)
+                  if (Number.isNaN(v)) return
+                  const clamped = Math.min(50, Math.max(0, v))
+                  setInterestRate(clamped)
+                }}
+                style={{
+                  width: '90px',
+                  padding: '0.25rem 0.4rem',
+                  background: 'var(--bg-elevated)',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text)',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: '0.8rem',
+                }}
+              />
             </div>
-            <div className="sim-riskchips">
-              <button
-                type="button"
-                className={`sim-chip ${riskComfort === 'safety' ? 'active' : ''}`}
-                onClick={() => setRiskComfort('safety')}
-              >
-                Safety
-              </button>
-              <button
-                type="button"
-                className={`sim-chip ${riskComfort === 'balanced' ? 'active' : ''}`}
-                onClick={() => setRiskComfort('balanced')}
-              >
-                Balanced
-              </button>
-              <button
-                type="button"
-                className={`sim-chip ${riskComfort === 'growth' ? 'active' : ''}`}
-                onClick={() => setRiskComfort('growth')}
-              >
-                Growth
-              </button>
-            </div>
-            <p className="sim-help text-muted">
-              This trades off safety, growth potential, and emotional stress in market swings.
-            </p>
           </div>
 
           <div className="sim-control">
             <div className="sim-control-header">
               <span className="sim-control-label">Target timeline</span>
               <span className="sim-control-value">
-                {targetLabelYears}
+                {horizonYears}
                 {' '}
                 yrs
               </span>
@@ -526,103 +418,93 @@ export default function WhatIfSimulator() {
         </section>
 
         <section className="card sim-panel-metrics">
-          <h2 className="section-title">Key metrics</h2>
+          <h2 className="section-title">Outcome Metrics</h2>
 
           <div className="sim-kpis">
             <div className="sim-kpi">
-              <div className="sim-kpi-label">Net worth delta</div>
-              <div className="sim-kpi-value neon-green">{formatCurrency(result.netWorthDelta)}</div>
-              <div className="sim-kpi-sub text-muted">
-                Difference between baseline and your current slider settings after 10 years.
+              <div className="sim-kpi-label">Median Outcome</div>
+              <div className="sim-kpi-value neon-green">
+                {medianOutcome != null ? formatCurrency(medianOutcome) : '—'}
               </div>
             </div>
 
             <div className="sim-kpi">
-              <div className="sim-kpi-label">Loan payoff shift</div>
-              <div className="sim-kpi-value neon-pink">
-                {result.payoffShiftMonths > 0
-                  ? `${result.payoffShiftMonths} months earlier`
-                  : result.payoffShiftMonths < 0
-                    ? `${Math.abs(result.payoffShiftMonths)} months later`
-                    : 'No change'}
-              </div>
-              <div className="sim-kpi-sub text-muted">
-                Based on the sample loan model vs minimum payment only.
-              </div>
-            </div>
-
-            <div className="sim-kpi">
-              <div className="sim-kpi-label">Total interest saved</div>
-              <div className="sim-kpi-value neon-green">{formatCurrency(result.interestSaved)}</div>
-              <div className="sim-kpi-sub text-muted">
-                Cumulative interest avoided by paying extra on the loan.
-              </div>
-            </div>
-
-            <div className="sim-kpi">
-              <div className="sim-kpi-label">Compounding gain difference</div>
+              <div className="sim-kpi-label">Worst 10% Outcome (P10)</div>
               <div className="sim-kpi-value">
-                {formatCurrency(result.compoundingGain)}
+                {worstOutcome != null ? formatCurrency(worstOutcome) : '—'}
+              </div>
+            </div>
+
+            <div className="sim-kpi">
+              <div className="sim-kpi-label">Best 10% Outcome (P90)</div>
+              <div className="sim-kpi-value">
+                {bestOutcome != null ? formatCurrency(bestOutcome) : '—'}
+              </div>
+            </div>
+
+            <div className="sim-kpi">
+              <div className="sim-kpi-label">Probability of Financial Stress</div>
+              <div className="sim-kpi-value">
+                {stressProbPct != null ? `${stressProbPct}%` : '—'}
               </div>
               <div className="sim-kpi-sub text-muted">
-                Portion of the net worth delta coming from compounding, not just extra contributions.
+                Chance that liquidity falls below 6 months by the end of the horizon.
+              </div>
+            </div>
+
+            <div className="sim-kpi">
+              <div className="sim-kpi-label">Years to Debt Freedom</div>
+              <div className="sim-kpi-value">
+                {debtFreedomYears != null ? `${debtFreedomYears.toFixed(1)} yrs` : '—'}
               </div>
             </div>
           </div>
 
           <div className="sim-summary card-inner">
-            <h3>Projection & timeline</h3>
-            <div className="sim-timeline-strip">
-              <span className="sim-timeline-label">Baseline:</span>
-              <span className="sim-timeline-value">
-                {result.monthsToFiBaseline ? formatMonthsToYears(result.monthsToFiBaseline) : 'Not reached'}
-              </span>
-              <span className="sim-timeline-sep">•</span>
-              <span className="sim-timeline-label">Scenario:</span>
-              <span className="sim-timeline-value">
-                {result.monthsToFiScenario ? formatMonthsToYears(result.monthsToFiScenario) : 'Not reached'}
-              </span>
-              <span className="sim-timeline-sep">•</span>
-              <span className="sim-timeline-label">Net worth:</span>
-              <span className="sim-timeline-value">
-                {formatCurrency(result.netWorthBaseline)} → {formatCurrency(result.netWorthScenario)}
-              </span>
-            </div>
-            <div className="sim-timeline-progress">
-              <div className="sim-timeline-line" />
-            </div>
-            <p className="text-muted sim-assumptions">
-              Assumptions: sample loan of {formatCurrency(LOAN_PRINCIPAL)} at {(LOAN_ANNUAL_RATE * 100).toFixed(1)}% APR,
-              10-year horizon, and a financial independence target of {formatCurrency(FI_TARGET_CAPITAL)}. All numbers are
-              illustrative and not financial advice.
+            <h3>AI Financial Coach</h3>
+            <p className="sim-assumptions">
+              {scenarioLoading && 'Crunching possible futures...'}
+              {!scenarioLoading && scenarioError && scenarioError}
+              {!scenarioLoading && !scenarioError
+                && (scenarioCoach?.commentary || 'Move the sliders to see live, context-aware commentary.')}
             </p>
           </div>
         </section>
       </div>
 
-      <section className="card sim-verdict-panel">
-        <div className="sim-verdict-heading">AGENT ASSESSMENT</div>
-        <div className={`sim-verdict-main sim-verdict-main-${verdict.level}`}>
-          {verdict.title}
-        </div>
-        <p className="sim-verdict-text">
-          {verdict.description}
-        </p>
-        <div className="sim-risk-meter">
-          <div className="sim-risk-meter-bar">
-            <div
-              className="sim-risk-meter-indicator"
-              style={{ left: `${risk.score}%` }}
-            />
+      <div className="sim-main-grid">
+        <section className="card sim-panel-metrics">
+          <h2 className="section-title">Distribution of Futures</h2>
+          <p className="text-muted" style={{ marginBottom: '0.4rem' }}>
+            Each bar shows how many simulations finished near that net worth. Percentile markers highlight cautious (P10),
+            typical (P50), and strong (P90) futures.
+          </p>
+          <div style={{ height: 260 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={scenarioDist}>
+                <XAxis dataKey="net_worth" tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
+                <YAxis tickFormatter={(v) => v.toFixed(0)} />
+                <Tooltip
+                  formatter={(v, name) => (name === 'count' ? `${v} paths` : formatCurrency(Number(v)))}
+                  labelFormatter={(v) => `Net worth ≈ ${formatCurrency(Number(v))}`}
+                />
+                <Legend />
+                <Bar dataKey="count" name="Simulated paths" fill="#6366f1" />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
-          <div className="sim-risk-meter-labels">
-            <span className={'sim-risk-label' + (risk.band === 'low' ? ' active' : '')}>Low risk</span>
-            <span className={'sim-risk-label' + (risk.band === 'medium' ? ' active' : '')}>Medium</span>
-            <span className={'sim-risk-label' + (risk.band === 'high' ? ' active' : '')}>High</span>
-            <span className={'sim-risk-label' + (risk.band === 'unsustainable' ? ' active' : '')}>Unsustainable</span>
-          </div>
-        </div>
-      </section>
+          {scenarioPct && (
+            <div className="sim-timeline-strip" style={{ marginTop: '0.75rem' }}>
+              <span className="sim-timeline-label">Percentiles:</span>
+              <span className="sim-timeline-value">P10 {formatCurrency(scenarioPct.p10 || 0)}</span>
+              <span className="sim-timeline-sep">·</span>
+              <span className="sim-timeline-value">P50 {formatCurrency(scenarioPct.p50 || 0)}</span>
+              <span className="sim-timeline-sep">·</span>
+              <span className="sim-timeline-value">P90 {formatCurrency(scenarioPct.p90 || 0)}</span>
+            </div>
+          )}
+        </section>
+      </div>
     </div>
   )
 }

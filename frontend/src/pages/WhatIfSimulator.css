@@ -281,6 +281,18 @@
   box-shadow: 0 0 20px rgba(0, 212, 255, 0.15);
 }
 
+.sim-ai-panel {
+  position: sticky;
+  top: 1.25rem;
+  align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border-radius: 12px;
+  border-color: rgba(0, 212, 255, 0.3);
+  box-shadow: 0 0 18px rgba(0, 212, 255, 0.18);
+}
+
 .sim-verdict-heading {
   font-size: 0.8rem;
   letter-spacing: 0.14em;
@@ -336,6 +348,21 @@
 
 .sim-risk-label {
   color: var(--text-muted);
+}
+
+.sim-ai-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+}
+
+.sim-ai-pill {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  font-family: var(--font-mono);
 }
 
 .sim-risk-label.active {

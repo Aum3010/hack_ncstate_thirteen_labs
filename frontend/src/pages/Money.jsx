@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { createTransaction } from '../api/transactions'
 import { listWallets, syncWallet } from '../api/wallets'
 import { uploadDocument, listDocuments } from '../api/documents'
+import { optimizeAllocation } from '../api/optimizer'
 import WalletConnect from '../components/WalletConnect'
 import './Money.css'
 
@@ -14,6 +15,11 @@ export default function Money() {
   const [uploading, setUploading] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState('')
+  const [alloc, setAlloc] = useState({ staked_pct: 50, liquid_pct: 20, stable_pct: 30 })
+  const [riskProfile, setRiskProfile] = useState('balanced')
+  const [optResult, setOptResult] = useState(null)
+  const [optLoading, setOptLoading] = useState(false)
+  const [optError, setOptError] = useState('')
 
   const load = () => {
     Promise.all([listWallets(), listDocuments()])
@@ -81,6 +87,24 @@ export default function Money() {
     }
   }
 
+  const totalAlloc = alloc.staked_pct + alloc.liquid_pct + alloc.stable_pct
+
+  const handleOptimize = async () => {
+    setOptLoading(true)
+    setOptError('')
+    try {
+      const data = await optimizeAllocation({
+        current: alloc,
+        risk_profile: riskProfile,
+      })
+      setOptResult(data)
+    } catch (err) {
+      setOptError(err.message || 'Failed to optimize allocation')
+    } finally {
+      setOptLoading(false)
+    }
+  }
+
   if (loading) return <div className="page-loading">Loading...</div>
 
   return (
@@ -113,6 +137,128 @@ export default function Money() {
         ) : (
           <WalletConnect onConnect={load} />
         )}
+      </section>
+      <section className="card money-section">
+        <h2 className="section-title">Smart Allocation Optimizer</h2>
+        <p className="text-muted">
+          AI portfolio coach for staking vs liquidity vs stable yield. Feels like a robo-advisor for your crypto stack.
+        </p>
+        <div className="alloc-grid">
+          <div className="alloc-column">
+            <div className="alloc-label-row">
+              <span className="alloc-label">Staked</span>
+              <span className="alloc-value">
+                {alloc.staked_pct.toFixed(0)}
+                %
+              </span>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              value={alloc.staked_pct}
+              onChange={(e) => setAlloc({ ...alloc, staked_pct: Number(e.target.value) })}
+            />
+            <div className="alloc-label-row">
+              <span className="alloc-label">Liquid</span>
+              <span className="alloc-value">
+                {alloc.liquid_pct.toFixed(0)}
+                %
+              </span>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              value={alloc.liquid_pct}
+              onChange={(e) => setAlloc({ ...alloc, liquid_pct: Number(e.target.value) })}
+            />
+            <div className="alloc-label-row">
+              <span className="alloc-label">Stable yield</span>
+              <span className="alloc-value">
+                {alloc.stable_pct.toFixed(0)}
+                %
+              </span>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              value={alloc.stable_pct}
+              onChange={(e) => setAlloc({ ...alloc, stable_pct: Number(e.target.value) })}
+            />
+            <div className="alloc-total">
+              Total:
+              {' '}
+              {totalAlloc.toFixed(0)}
+              %
+            </div>
+          </div>
+          <div className="alloc-column">
+            <div className="alloc-risk-toggle">
+              <span className="alloc-label">Risk profile</span>
+              <div className="alloc-risk-chips">
+                {['conservative', 'balanced', 'aggressive'].map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    className={`sim-chip ${riskProfile === p ? 'active' : ''}`}
+                    onClick={() => setRiskProfile(p)}
+                  >
+                    {p.charAt(0).toUpperCase() + p.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleOptimize}
+              disabled={optLoading}
+            >
+              {optLoading ? 'Optimizing...' : 'Optimize allocation'}
+            </button>
+            {optError && <div className="auth-error" style={{ marginTop: '0.5rem' }}>{optError}</div>}
+            {optResult && (
+              <div className="alloc-result">
+                <div className="alloc-result-row">
+                  <span className="alloc-label">Current expected return</span>
+                  <span className="alloc-value">
+                    {(optResult.current.expected_return * 100).toFixed(1)}
+                    %
+                  </span>
+                </div>
+                <div className="alloc-result-row">
+                  <span className="alloc-label">Optimized expected return</span>
+                  <span className="alloc-value neon-green">
+                    {(optResult.optimized.expected_return * 100).toFixed(1)}
+                    %
+                  </span>
+                </div>
+                <div className="alloc-result-row">
+                  <span className="alloc-label">Risk (drawdown proxy)</span>
+                  <span className="alloc-value">
+                    {(optResult.current.risk * 100).toFixed(1)}
+                    %
+                    {' '}
+                    →
+                    {' '}
+                    <span className="neon-pink">
+                      {(optResult.optimized.risk * 100).toFixed(1)}
+                      %
+                    </span>
+                  </span>
+                </div>
+                <p className="text-muted" style={{ marginTop: '0.5rem' }}>
+                  {optResult.explanation}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
       </section>
       <section className="card money-section">
         <h2 className="section-title">Add transaction</h2>
