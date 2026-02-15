@@ -1,11 +1,27 @@
 import os
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, Response, stream_with_context
 from app.routes.auth import get_current_user_id
 from app.services.backboard_ingest import ingest_user_context_to_backboard
 from app.services.orchestrator import chat as orchestrator_chat
+from app.services.eleven_service import stream_speech, transcribe_audio
+from app.services.audio_service import convert_audio
 from app.models import User
 
 assistant_bp = Blueprint("assistant", __name__)
+
+
+def _detect_audio_format(filename: str, content_type: str) -> str:
+    name = (filename or "").lower()
+    ctype = (content_type or "").lower()
+    if name.endswith(".wav") or "wav" in ctype:
+        return "wav"
+    if name.endswith(".mp3") or "mpeg" in ctype or "mp3" in ctype:
+        return "mp3"
+    if name.endswith(".ogg") or "ogg" in ctype:
+        return "ogg"
+    if name.endswith(".m4a") or "mp4" in ctype or "aac" in ctype:
+        return "mp4"
+    return "webm"
 
 
 @assistant_bp.route("/chat", methods=["POST"])
@@ -62,13 +78,13 @@ def stt():
     uid = get_current_user_id()
     if not uid:
         return jsonify({"error": "Not authenticated"}), 401
-    api_key = os.environ.get("ELEVENLABS_API_KEY", "")
-    if not api_key:
+    if not os.environ.get("ELEVENLABS_API_KEY", ""):
         return jsonify({"error": "Set ELEVENLABS_API_KEY for STT"}), 503
     audio_file = request.files.get("audio")
     if not audio_file:
         return jsonify({"error": "audio file required"}), 400
     language = (request.form.get("language") or "en").strip() or "en"
+    source_format = _detect_audio_format(audio_file.filename or "", audio_file.content_type or "")
     try:
         audio_bytes = audio_file.read()
     except Exception as e:
@@ -76,30 +92,24 @@ def stt():
     if not audio_bytes:
         return jsonify({"error": "empty audio"}), 400
     try:
-        import requests
-        filename = audio_file.filename or "audio.webm"
-        files = {"file": (filename, audio_bytes, audio_file.content_type or "audio/webm")}
-        data = {"model_id": "scribe_v2", "language_code": language}
-        r = requests.post(
-            "https://api.elevenlabs.io/v1/speech-to-text",
-            headers={"xi-api-key": api_key},
-            files=files,
-            data=data,
-            timeout=30,
-        )
-        if not r.ok:
-            err = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
-            return jsonify({"error": err.get("detail", err.get("message", r.text))}), 502
-        out = r.json()
-        text = (out.get("text") or "").strip()
-        return jsonify({"text": text})
-    except requests.RequestException as e:
-        return jsonify({"error": str(e)}), 502
+        text = transcribe_audio(audio_bytes, language=language)
+        return jsonify({"text": (text or "").strip()})
+    except Exception as e:
+        primary_error = str(e)
+        try:
+            fallback_mp3 = convert_audio(audio_bytes, source_format=source_format, target_format="mp3")
+            text = transcribe_audio(fallback_mp3, language=language)
+            return jsonify({"text": (text or "").strip()})
+        except Exception as fallback_error:
+            return jsonify({
+                "error": f"STT failed: {primary_error}",
+                "fallback_error": str(fallback_error),
+            }), 502
 
 
 @assistant_bp.route("/tts", methods=["POST"])
 def tts():
-    """ElevenLabs TTS: convert text to speech. Stub when no key."""
+    """ElevenLabs TTS: stream MP3 audio directly from ElevenLabs to browser."""
     uid = get_current_user_id()
     if not uid:
         return jsonify({"error": "Not authenticated"}), 401
@@ -107,19 +117,14 @@ def tts():
     text = (data.get("text") or "").strip()
     if not text:
         return jsonify({"error": "text required"}), 400
-    api_key = os.environ.get("ELEVENLABS_API_KEY", "")
-    if not api_key:
-        return jsonify({"audio_url": None, "message": "Set ELEVENLABS_API_KEY for TTS"})
+    if not os.environ.get("ELEVENLABS_API_KEY", ""):
+        return jsonify({"error": "Set ELEVENLABS_API_KEY for TTS"}), 503
+    voice_id = (data.get("voice_id") or "").strip() or None
     try:
-        import requests
-        r = requests.post(
-            "https://api.elevenlabs.io/v1/text-to-speech/default",
-            headers={"xi-api-key": api_key, "Content-Type": "application/json"},
-            json={"text": text},
-            timeout=15,
-        )
-        if r.ok:
-            return jsonify({"audio_url": "data:audio/mpeg;base64," + __import__("base64").b64encode(r.content).decode()})
+        audio_stream = stream_with_context(stream_speech(text, voice_id=voice_id))
+        response = Response(audio_stream, mimetype="audio/mpeg")
+        response.headers["Content-Disposition"] = "inline"
+        response.headers["Cache-Control"] = "no-cache"
+        return response
     except Exception as e:
         return jsonify({"error": str(e)}), 502
-    return jsonify({"error": "TTS failed"}), 502

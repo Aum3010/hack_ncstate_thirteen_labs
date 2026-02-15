@@ -5,6 +5,7 @@ import { portfolioChat, getPortfolioAllocation, getSpendingAnalysis } from '../a
 import { listGoals } from '../api/goals'
 import { listTransactions } from '../api/transactions'
 import UrbanNoirScene from '../components/UrbanNoir/UrbanNoirScene'
+import useVoiceAssistant from '../hooks/useVoiceAssistant'
 import './Portfolio.css'
 
 const RISK_OPTIONS = [
@@ -21,6 +22,31 @@ function mapCategoryToBucket(name) {
   if (n.includes('hysa') || n.includes('cash') || n.includes('savings')) return 'hysa'
   if (n.includes('gold') || n.includes('bond') || n.includes('real estate')) return 'gold'
   return 'stocks'
+}
+
+function normalizeAllocationFromCategories(categories) {
+  if (!Array.isArray(categories) || categories.length === 0) return null
+  const aggregated = { stocks: 0, roth: 0, _401k: 0, hysa: 0, gold: 0 }
+
+  for (const category of categories) {
+    const key = mapCategoryToBucket(category.name)
+    const percentage = Math.round(Number(category.percentage) || 0)
+    if (aggregated[key] !== undefined) aggregated[key] += percentage
+  }
+
+  const total = Object.values(aggregated).reduce((sum, value) => sum + value, 0)
+  if (total <= 0) return null
+
+  let remainder = 100 - total
+  const keys = Object.keys(aggregated)
+  for (let i = 0; i < keys.length && remainder !== 0; i++) {
+    const key = keys[i]
+    const delta = remainder > 0 ? 1 : -1
+    aggregated[key] = Math.max(0, Math.min(100, aggregated[key] + delta))
+    remainder -= delta
+  }
+
+  return aggregated
 }
 
 export default function Portfolio() {
@@ -69,6 +95,25 @@ export default function Portfolio() {
   const [chatLoading, setChatLoading] = useState(false)
   const [scrollProgress, setScrollProgress] = useState(0)
   const scrollContainerRef = useRef(null)
+  const chatMessagesRef = useRef(null)
+  const { micState, assistantAudio, voiceError, toggleRecording, speakText } = useVoiceAssistant()
+
+  const fetchAdvisorAllocation = useCallback(async (goalText, selectedRisk) => {
+    const safeGoal = (goalText || 'general growth and retirement').trim() || 'general growth and retirement'
+    const safeRisk = selectedRisk || 'balanced'
+    setAllocationLoading(true)
+    try {
+      const data = await getPortfolioAllocation(safeGoal, safeRisk)
+      const normalized = normalizeAllocationFromCategories(data?.categories)
+      if (!normalized) return false
+      setAlloc(normalized)
+      return true
+    } catch {
+      return false
+    } finally {
+      setAllocationLoading(false)
+    }
+  }, [])
 
   const handleScroll = useCallback(() => {
     const el = scrollContainerRef.current
@@ -122,37 +167,16 @@ export default function Portfolio() {
         }
         setIncome(inc ?? 10000)
 
-        // Fetch LLM allocation with profile goal and risk
-        setAllocationLoading(true)
-        getPortfolioAllocation(goal || 'general growth and retirement', validRisk ? r : 'balanced')
-          .then((data) => {
-            const cats = data?.categories
-            if (Array.isArray(cats) && cats.length > 0) {
-              const aggregated = { stocks: 0, roth: 0, _401k: 0, hysa: 0, gold: 0 }
-              for (const c of cats) {
-                const key = mapCategoryToBucket(c.name)
-                const pct = Math.round(Number(c.percentage) || 0)
-                if (aggregated[key] !== undefined) aggregated[key] += pct
-              }
-              const total = Object.values(aggregated).reduce((a, b) => a + b, 0)
-              if (total > 0) {
-                let remainder = 100 - total
-                const keys = Object.keys(aggregated)
-                for (let i = 0; i < keys.length && remainder !== 0; i++) {
-                  const k = keys[i]
-                  const add = remainder > 0 ? 1 : -1
-                  aggregated[k] = Math.max(0, Math.min(100, aggregated[k] + add))
-                  remainder -= add
-                }
-                setAlloc(aggregated)
-              }
-            }
+        // Fetch advisor allocation with profile goal and risk
+        const selectedRisk = validRisk ? r : 'balanced'
+        fetchAdvisorAllocation(goal || 'general growth and retirement', selectedRisk)
+          .then((ok) => {
+            if (!ok) applyPreset(selectedRisk)
           })
           .catch(() => {})
-          .finally(() => setAllocationLoading(false))
       })
       .catch(() => {})
-  }, [])
+  }, [fetchAdvisorAllocation])
 
   // --- Load spending analysis on mount ---
   useEffect(() => {
@@ -168,6 +192,12 @@ export default function Portfolio() {
       .then((gs) => setHasLongTermGoal(gs.some((g) => (g.category || '').toLowerCase().includes('long'))))
       .catch(() => setHasLongTermGoal(false))
   }, [])
+
+  useEffect(() => {
+    const el = chatMessagesRef.current
+    if (!el) return
+    el.scrollTop = el.scrollHeight
+  }, [messages, chatLoading])
 
   const applyPreset = (mode) => {
     const base = { ...PRESETS[mode] }
@@ -225,13 +255,13 @@ export default function Portfolio() {
   }, [alloc])
 
   // --- Chat handlers ---
-  const sendChat = async () => {
-    const msg = chatInput.trim()
+  const sendChat = async (textOverride = null) => {
+    const msg = (textOverride ?? chatInput).trim()
     if (!msg) return
     const userMessage = { role: 'user', content: msg }
     const nextMessages = [...messages, userMessage]
     setMessages(nextMessages)
-    setChatInput('')
+    if (textOverride == null) setChatInput('')
     setChatLoading(true)
     try {
       const [txData, goals] = await Promise.all([
@@ -263,12 +293,29 @@ export default function Portfolio() {
       }
 
       const data = await portfolioChat(payload)
-      setMessages((prev) => [...prev, { role: 'assistant', content: data.text || 'No response.' }])
+      const assistantText = data.text || 'No response.'
+      setMessages((prev) => [...prev, { role: 'assistant', content: assistantText }])
+      if (assistantText) {
+        speakText(assistantText).catch(() => {})
+      }
     } catch (err) {
       setMessages((prev) => [...prev, { role: 'assistant', content: 'Error: ' + err.message }])
     } finally {
       setChatLoading(false)
     }
+  }
+
+  const handleVoiceInput = async () => {
+    await toggleRecording(async (transcript) => {
+      setChatInput(transcript)
+      await sendChat(transcript)
+    }, 7000)
+  }
+
+  const handleSpeakInput = async () => {
+    const text = chatInput.trim()
+    if (!text) return
+    await speakText(text).catch(() => {})
   }
 
   // --- Savings progress removed; page focused on investment summary ---
@@ -313,7 +360,11 @@ export default function Portfolio() {
               onChange={(e) => {
                 const nextRisk = e.target.value
                 setRisk(nextRisk)
-                applyPreset(nextRisk)
+                fetchAdvisorAllocation(profileGoal || 'general growth and retirement', nextRisk)
+                  .then((ok) => {
+                    if (!ok) applyPreset(nextRisk)
+                  })
+                  .catch(() => applyPreset(nextRisk))
               }}
               aria-label="Risk tolerance"
             >
@@ -325,33 +376,11 @@ export default function Portfolio() {
               type="button"
               className="btn btn-ghost btn-sm"
               onClick={() => {
-                setAllocationLoading(true)
-                getPortfolioAllocation(profileGoal || 'general growth and retirement', risk)
-                  .then((data) => {
-                    const cats = data?.categories
-                    if (Array.isArray(cats) && cats.length > 0) {
-                      const aggregated = { stocks: 0, roth: 0, _401k: 0, hysa: 0, gold: 0 }
-                      for (const c of cats) {
-                        const key = mapCategoryToBucket(c.name)
-                        const pct = Math.round(Number(c.percentage) || 0)
-                        if (aggregated[key] !== undefined) aggregated[key] += pct
-                      }
-                      const total = Object.values(aggregated).reduce((a, b) => a + b, 0)
-                      if (total > 0) {
-                        let remainder = 100 - total
-                        const keys = Object.keys(aggregated)
-                        for (let i = 0; i < keys.length && remainder !== 0; i++) {
-                          const k = keys[i]
-                          const add = remainder > 0 ? 1 : -1
-                          aggregated[k] = Math.max(0, Math.min(100, aggregated[k] + add))
-                          remainder -= add
-                        }
-                        setAlloc(aggregated)
-                      }
-                    }
+                fetchAdvisorAllocation(profileGoal || 'general growth and retirement', risk)
+                  .then((ok) => {
+                    if (!ok) applyPreset(risk)
                   })
-                  .catch(() => {})
-                  .finally(() => setAllocationLoading(false))
+                  .catch(() => applyPreset(risk))
               }}
               disabled={allocationLoading}
             >
@@ -462,7 +491,7 @@ export default function Portfolio() {
           {/* Chart Explanation & Q&A (Gemini) */}
           <div className="card portfolio-explain-card">
             <h2 className="section-title">Chart Explanation & Q&A</h2>
-            <div className="portfolio-chat-messages">
+            <div className="portfolio-chat-messages" ref={chatMessagesRef}>
               {messages.length === 0 && !chatLoading && (
                 <p className="text-muted portfolio-chat-empty">Ask about your spending, savings, or portfolio goals.</p>
               )}
@@ -487,10 +516,31 @@ export default function Portfolio() {
                 onChange={(e) => setChatInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && sendChat()}
               />
-              <button type="button" className="btn btn-primary" onClick={sendChat} disabled={chatLoading || !chatInput.trim()}>
+              <button
+                type="button"
+                className={`btn btn-primary portfolio-chat-mic ${micState === 'recording' ? 'portfolio-chat-mic-recording' : ''}`}
+                onClick={handleVoiceInput}
+                disabled={chatLoading || micState === 'processing'}
+                aria-label="Voice input"
+                title={micState === 'recording' ? 'Stop recording' : micState === 'processing' ? 'Processing voice' : 'Voice input'}
+              >
+                {micState === 'recording' ? '■' : micState === 'processing' ? '...' : '🎤'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary portfolio-chat-speak"
+                onClick={handleSpeakInput}
+                disabled={chatLoading || micState === 'processing' || assistantAudio === 'playing' || !chatInput.trim()}
+                aria-label="Speak text"
+                title={assistantAudio === 'playing' ? 'Playing audio' : 'Speak typed text'}
+              >
+                {assistantAudio === 'playing' ? '...' : '🔊'}
+              </button>
+              <button type="button" className="btn btn-primary" onClick={() => sendChat()} disabled={chatLoading || micState === 'processing' || !chatInput.trim()}>
                 {chatLoading ? '...' : 'Send'}
               </button>
             </div>
+            {voiceError ? <p className="portfolio-voice-error">{voiceError}</p> : null}
           </div>
         </div>
       </div>

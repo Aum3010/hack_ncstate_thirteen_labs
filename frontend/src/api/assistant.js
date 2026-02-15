@@ -9,7 +9,12 @@ function credentials() {
  */
 export async function speechToText(audioBlob, language = 'en') {
   const form = new FormData()
-  const filename = audioBlob.type && audioBlob.type.includes('webm') ? 'recording.webm' : 'recording.ogg'
+  const blobType = (audioBlob?.type || '').toLowerCase()
+  let filename = 'recording.webm'
+  if (blobType.includes('ogg')) filename = 'recording.ogg'
+  else if (blobType.includes('wav')) filename = 'recording.wav'
+  else if (blobType.includes('mpeg') || blobType.includes('mp3')) filename = 'recording.mp3'
+  else if (blobType.includes('mp4') || blobType.includes('aac')) filename = 'recording.m4a'
   form.append('audio', audioBlob, filename)
   form.append('language', language)
   const res = await fetch(`${API}/api/assistant/stt`, {
@@ -23,30 +28,55 @@ export async function speechToText(audioBlob, language = 'en') {
 }
 
 /**
- * Request TTS for text; returns { audio_url } (base64 data URL).
+ * Request streamed TTS audio for text; returns audio Blob.
  */
-export async function textToSpeech(text) {
+export async function textToSpeechBlob(text) {
   const res = await fetch(`${API}/api/assistant/tts`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     ...credentials(),
     body: JSON.stringify({ text }),
   })
-  if (!res.ok) throw new Error('TTS failed')
-  return res.json()
+
+  const contentType = (res.headers.get('content-type') || '').toLowerCase()
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error(data.error || 'TTS failed')
+  }
+
+  if (contentType.includes('audio/')) {
+    return res.blob()
+  }
+
+  const data = await res.json().catch(() => ({}))
+  const audioUrl = data?.audio_url
+  if (typeof audioUrl === 'string' && audioUrl.startsWith('data:audio/')) {
+    const base64 = audioUrl.split(',')[1]
+    if (!base64) throw new Error('TTS failed')
+    const binary = atob(base64)
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i)
+    }
+    return new Blob([bytes], { type: 'audio/mpeg' })
+  }
+
+  throw new Error(data?.error || 'TTS failed')
 }
 
+export const textToSpeech = textToSpeechBlob
+
 /**
- * Play TTS from API response. Resolves when playback ends or errors.
- * @param {{ audio_url?: string }} data - response from textToSpeech()
+ * Play audio element and resolve when playback ends.
  */
-export function playTTSFromResponse(data) {
-  const url = data?.audio_url
-  if (!url) return Promise.resolve()
+export function playAudioBlob(audio) {
+  if (!audio) return Promise.resolve()
   return new Promise((resolve, reject) => {
-    const audio = new Audio(url)
     audio.onended = () => resolve()
     audio.onerror = (e) => reject(e.error || new Error('Playback failed'))
     audio.play().catch(reject)
   })
 }
+
+export const playTTSFromResponse = playAudioBlob

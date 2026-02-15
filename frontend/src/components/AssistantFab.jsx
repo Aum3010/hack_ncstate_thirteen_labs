@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import './AssistantFab.css'
 
 import { API } from '../api/config'
-import { speechToText, textToSpeech, playTTSFromResponse } from '../api/assistant'
+import useVoiceAssistant from '../hooks/useVoiceAssistant'
 
 const MODES = [
   { value: 'conservative', label: 'Conservative' },
@@ -16,10 +16,7 @@ export default function AssistantFab() {
   const [reply, setReply] = useState('')
   const [loading, setLoading] = useState(false)
   const [mode, setMode] = useState('balanced')
-  const [voiceState, setVoiceState] = useState('idle') // idle | recording | processing | playing
-  const streamRef = useRef(null)
-  const recorderRef = useRef(null)
-  const chunksRef = useRef([])
+  const { micState, assistantAudio, voiceError, toggleRecording, speakText } = useVoiceAssistant()
 
   useEffect(() => {
     if (!open) return
@@ -31,19 +28,6 @@ export default function AssistantFab() {
       .catch(() => {})
   }, [open])
 
-  useEffect(() => {
-    return () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((t) => t.stop())
-        streamRef.current = null
-      }
-      if (recorderRef.current && recorderRef.current.state !== 'inactive') {
-        try { recorderRef.current.stop() } catch (_) {}
-        recorderRef.current = null
-      }
-    }
-  }, [])
-
   const persistMode = (newMode) => {
     setMode(newMode)
     fetch(`${API}/api/users/me`, {
@@ -54,8 +38,8 @@ export default function AssistantFab() {
     }).catch(() => {})
   }
 
-  const send = async () => {
-    const msg = input.trim()
+  const send = async (textOverride = null) => {
+    const msg = (textOverride ?? input).trim()
     if (!msg) return
     setLoading(true)
     setReply('')
@@ -71,7 +55,10 @@ export default function AssistantFab() {
         ? (data.text || data.error || 'No response.')
         : (data.error || data.text || res.statusText || 'Chat failed')
       setReply(replyText)
-      setInput('')
+      if (textOverride == null) setInput('')
+      if (res.ok && replyText) {
+        speakText(replyText).catch(() => {})
+      }
     } catch (e) {
       setReply('Error: ' + e.message)
     } finally {
@@ -79,76 +66,24 @@ export default function AssistantFab() {
     }
   }
 
-  const startVoice = async () => {
-    if (voiceState !== 'idle') return
+  const toggleVoice = async () => {
     setReply('')
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      streamRef.current = stream
-      const recorder = new MediaRecorder(stream)
-      recorderRef.current = recorder
-      chunksRef.current = []
-      recorder.ondataavailable = (e) => { if (e.data.size) chunksRef.current.push(e.data) }
-      recorder.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop())
-        streamRef.current = null
-        recorderRef.current = null
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
-        setVoiceState('processing')
-        try {
-          const { text } = await speechToText(blob)
-          if (!text || !text.trim()) {
-            setReply("Couldn't hear you. Try again.")
-            setVoiceState('idle')
-            return
-          }
-          setInput(text)
-          const res = await fetch(`${API}/api/assistant/chat`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ message: text.trim(), mode }),
-          })
-          const data = await res.json().catch(() => ({}))
-          const replyText = res.ok
-            ? (data.text || data.error || 'No response.')
-            : (data.error || data.text || res.statusText || 'Chat failed')
-          setReply(replyText)
-          setVoiceState('playing')
-          const ttsData = await textToSpeech(replyText).catch(() => null)
-          if (ttsData?.audio_url) {
-            await playTTSFromResponse(ttsData).catch(() => {})
-          }
-        } catch (e) {
-          setReply(e.message === 'STT failed' ? "Couldn't hear you." : 'Error: ' + e.message)
-        } finally {
-          setVoiceState('idle')
-        }
-      }
-      recorder.start()
-      setVoiceState('recording')
-    } catch (e) {
-      setReply(e.name === 'NotAllowedError' ? 'Microphone access denied.' : 'Error: ' + e.message)
-      setVoiceState('idle')
-    }
-  }
-
-  const stopVoice = () => {
-    if (voiceState !== 'recording') return
-    if (recorderRef.current && recorderRef.current.state !== 'inactive') {
-      recorderRef.current.stop()
-    }
-  }
-
-  const toggleVoice = () => {
-    if (voiceState === 'recording') stopVoice()
-    else if (voiceState === 'idle') startVoice()
+    await toggleRecording(async (transcript) => {
+      setInput(transcript)
+      await send(transcript)
+    }, 7000)
   }
 
   const voiceLabel =
-    voiceState === 'recording' ? 'Stop (send)' :
-    voiceState === 'processing' ? 'Processing...' :
-    voiceState === 'playing' ? 'Speaking...' : 'Speak'
+    micState === 'recording' ? 'Stop recording' :
+    micState === 'processing' ? 'Processing voice' :
+    assistantAudio === 'playing' ? 'Speaking...' : 'Voice input'
+
+  const handleSpeakInput = async () => {
+    const text = input.trim()
+    if (!text) return
+    await speakText(text).catch(() => {})
+  }
 
   return (
     <div className="assistant-fab-wrap">
@@ -176,13 +111,13 @@ export default function AssistantFab() {
           <div className="assistant-voice-row">
             <button
               type="button"
-              className={`btn assistant-mic ${voiceState === 'recording' ? 'assistant-mic-recording' : ''}`}
+              className={`btn assistant-mic ${micState === 'recording' ? 'assistant-mic-recording' : ''}`}
               onClick={toggleVoice}
-              disabled={loading || voiceState === 'processing' || voiceState === 'playing'}
+              disabled={loading || micState === 'processing'}
               title={voiceLabel}
-              aria-label={voiceLabel}
+              aria-label="Voice input"
             >
-              {voiceState === 'recording' ? '■' : '🎤'}
+              {micState === 'recording' ? '■' : micState === 'processing' ? '...' : '🎤'}
             </button>
             <input
               className="input"
@@ -191,10 +126,21 @@ export default function AssistantFab() {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && send()}
             />
-            <button type="button" className="btn btn-primary" onClick={send} disabled={loading || !input.trim() || voiceState === 'recording'}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleSpeakInput}
+              disabled={loading || micState === 'processing' || assistantAudio === 'playing' || !input.trim()}
+              aria-label="Speak text"
+              title={assistantAudio === 'playing' ? 'Playing audio' : 'Speak typed text'}
+            >
+              {assistantAudio === 'playing' ? '...' : '🔊'}
+            </button>
+            <button type="button" className="btn btn-primary" onClick={() => send()} disabled={loading || micState === 'processing' || !input.trim() || micState === 'recording'}>
               {loading ? '...' : 'Send'}
             </button>
           </div>
+          {voiceError ? <div className="assistant-hint" style={{ color: 'var(--neon-pink)', marginTop: '0.5rem', marginBottom: 0 }}>{voiceError}</div> : null}
         </div>
       )}
       <button
