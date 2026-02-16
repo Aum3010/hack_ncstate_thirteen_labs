@@ -14,6 +14,11 @@ export default function Money() {
   const [uploading, setUploading] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState('')
+  const [alloc, setAlloc] = useState({ staked_pct: 50, liquid_pct: 20, stable_pct: 30 })
+  const [riskProfile, setRiskProfile] = useState('balanced')
+  const [optResult, setOptResult] = useState(null)
+  const [optLoading, setOptLoading] = useState(false)
+  const [optError, setOptError] = useState('')
 
   const load = () => {
     Promise.all([listWallets(), listDocuments()])
@@ -79,6 +84,24 @@ export default function Money() {
     } finally {
       setUploading(false)
       e.target.value = ''
+    }
+  }
+
+  const totalAlloc = alloc.staked_pct + alloc.liquid_pct + alloc.stable_pct
+
+  const handleOptimize = async () => {
+    setOptLoading(true)
+    setOptError('')
+    try {
+      const data = await optimizeAllocation({
+        current: alloc,
+        risk_profile: riskProfile,
+      })
+      setOptResult(data)
+    } catch (err) {
+      setOptError(err.message || 'Failed to optimize allocation')
+    } finally {
+      setOptLoading(false)
     }
   }
 
