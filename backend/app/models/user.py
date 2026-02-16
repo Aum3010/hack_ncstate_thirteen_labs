@@ -22,6 +22,8 @@ class User(db.Model):
     onboarding_completed = db.Column(db.Boolean, default=False)
     assistant_mode = db.Column(db.String(32), nullable=True, default="balanced")
     backboard_thread_id = db.Column(db.String(255), nullable=True, index=True)
+    onboarding_answers = db.Column(db.JSON, nullable=True)
+    profile_questionnaire = db.Column(db.JSON, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -43,14 +45,20 @@ class User(db.Model):
         return check_password_hash(self.password_hash, password)
 
     def to_dict(self):
+        email = self.email
         return {
             "id": self.id,
-            "email": self.email,
+            "email": email,
             "username": self.username,
             "has_wallet": any(w.address for w in self.wallets),
             "has_presage": bool(self.presage_user_id),
             "partition_config": self.get_partition_config(),
             "onboarding_completed": self.onboarding_completed or False,
             "assistant_mode": self.assistant_mode or "balanced",
+            "onboarding_answers": self.onboarding_answers,
+            "profile_questionnaire": self.profile_questionnaire,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+
+    def get_email(self) -> str:
+        return self.email or ""

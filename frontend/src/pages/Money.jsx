@@ -1,16 +1,15 @@
 import React, { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { createTransaction } from '../api/transactions'
 import { listWallets, syncWallet } from '../api/wallets'
 import { uploadDocument, listDocuments } from '../api/documents'
-import { optimizeAllocation } from '../api/optimizer'
-import WalletConnect from '../components/WalletConnect'
 import './Money.css'
 
 export default function Money() {
   const [wallets, setWallets] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ amount: '', category: '', description: '' })
+  const [form, setForm] = useState({ amount: '', category: '', description: '', type: 'spend' })
   const [documents, setDocuments] = useState([])
   const [uploading, setUploading] = useState(false)
   const [syncing, setSyncing] = useState(false)
@@ -39,17 +38,18 @@ export default function Money() {
     e.preventDefault()
     setError('')
     const amount = parseFloat(form.amount)
-    if (!amount) {
-      setError('Enter amount')
+    if (amount === undefined || amount === null || isNaN(amount) || amount === 0) {
+      setError('Enter a non-zero amount')
       return
     }
+    const signedAmount = form.type === 'receive' ? Math.abs(amount) : -Math.abs(amount)
     try {
       await createTransaction({
-        amount: Math.abs(amount),
+        amount: signedAmount,
         category: form.category || undefined,
         description: form.description || undefined,
       })
-      setForm({ amount: '', category: '', description: '' })
+      setForm({ amount: '', category: '', description: '', type: 'spend' })
       setShowForm(false)
       load()
     } catch (err) {
@@ -110,10 +110,10 @@ export default function Money() {
   return (
     <div className="money-page">
       <h1 className="page-title">Money & Crypto</h1>
-      <section className="card money-section">
-        <h2 className="section-title">Upload bank statement / invoice</h2>
+      <section className="dossier-panel money-section">
+        <h2 className="dossier-title">Upload bank statement / invoice</h2>
         <p className="text-muted">Backboard ingests for memory and RAG.</p>
-        <label className="btn btn-primary" style={{ display: 'inline-block' }}>
+        <label className="btn btn-ember" style={{ display: 'inline-block' }}>
           {uploading ? 'Uploading...' : 'Choose file'}
           <input type="file" accept=".pdf,.csv,.txt" onChange={onFile} disabled={uploading} style={{ display: 'none' }} />
         </label>
@@ -125,154 +125,39 @@ export default function Money() {
           </ul>
         )}
       </section>
-      <section className="card money-section">
-        <h2 className="section-title">Wallet</h2>
+      <section className="dossier-panel money-section">
+        <h2 className="dossier-title">Wallet</h2>
         {wallets?.length > 0 ? (
           <div>
             <p className="text-muted">Solana: {wallets[0].address?.slice(0, 12)}...{wallets[0].address?.slice(-8)}</p>
-            <button type="button" className="btn btn-primary" onClick={onSyncSolana} disabled={syncing}>
+            <button type="button" className="btn btn-ember" onClick={onSyncSolana} disabled={syncing}>
               {syncing ? 'Syncing...' : 'Sync Solana'}
             </button>
           </div>
         ) : (
-          <WalletConnect onConnect={load} />
+          <p className="text-muted">
+            No wallet linked. Connect and manage wallets in <Link to="/profile">Profile</Link>.
+          </p>
         )}
       </section>
-      <section className="card money-section">
-        <h2 className="section-title">Smart Allocation Optimizer</h2>
-        <p className="text-muted">
-          AI portfolio coach for staking vs liquidity vs stable yield. Feels like a robo-advisor for your crypto stack.
-        </p>
-        <div className="alloc-grid">
-          <div className="alloc-column">
-            <div className="alloc-label-row">
-              <span className="alloc-label">Staked</span>
-              <span className="alloc-value">
-                {alloc.staked_pct.toFixed(0)}
-                %
-              </span>
-            </div>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              step="1"
-              value={alloc.staked_pct}
-              onChange={(e) => setAlloc({ ...alloc, staked_pct: Number(e.target.value) })}
-            />
-            <div className="alloc-label-row">
-              <span className="alloc-label">Liquid</span>
-              <span className="alloc-value">
-                {alloc.liquid_pct.toFixed(0)}
-                %
-              </span>
-            </div>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              step="1"
-              value={alloc.liquid_pct}
-              onChange={(e) => setAlloc({ ...alloc, liquid_pct: Number(e.target.value) })}
-            />
-            <div className="alloc-label-row">
-              <span className="alloc-label">Stable yield</span>
-              <span className="alloc-value">
-                {alloc.stable_pct.toFixed(0)}
-                %
-              </span>
-            </div>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              step="1"
-              value={alloc.stable_pct}
-              onChange={(e) => setAlloc({ ...alloc, stable_pct: Number(e.target.value) })}
-            />
-            <div className="alloc-total">
-              Total:
-              {' '}
-              {totalAlloc.toFixed(0)}
-              %
-            </div>
-          </div>
-          <div className="alloc-column">
-            <div className="alloc-risk-toggle">
-              <span className="alloc-label">Risk profile</span>
-              <div className="alloc-risk-chips">
-                {['conservative', 'balanced', 'aggressive'].map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    className={`sim-chip ${riskProfile === p ? 'active' : ''}`}
-                    onClick={() => setRiskProfile(p)}
-                  >
-                    {p.charAt(0).toUpperCase() + p.slice(1)}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={handleOptimize}
-              disabled={optLoading}
-            >
-              {optLoading ? 'Optimizing...' : 'Optimize allocation'}
-            </button>
-            {optError && <div className="auth-error" style={{ marginTop: '0.5rem' }}>{optError}</div>}
-            {optResult && (
-              <div className="alloc-result">
-                <div className="alloc-result-row">
-                  <span className="alloc-label">Current expected return</span>
-                  <span className="alloc-value">
-                    {(optResult.current.expected_return * 100).toFixed(1)}
-                    %
-                  </span>
-                </div>
-                <div className="alloc-result-row">
-                  <span className="alloc-label">Optimized expected return</span>
-                  <span className="alloc-value neon-green">
-                    {(optResult.optimized.expected_return * 100).toFixed(1)}
-                    %
-                  </span>
-                </div>
-                <div className="alloc-result-row">
-                  <span className="alloc-label">Risk (drawdown proxy)</span>
-                  <span className="alloc-value">
-                    {(optResult.current.risk * 100).toFixed(1)}
-                    %
-                    {' '}
-                    →
-                    {' '}
-                    <span className="neon-pink">
-                      {(optResult.optimized.risk * 100).toFixed(1)}
-                      %
-                    </span>
-                  </span>
-                </div>
-                <p className="text-muted" style={{ marginTop: '0.5rem' }}>
-                  {optResult.explanation}
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-      <section className="card money-section">
-        <h2 className="section-title">Add transaction</h2>
+      <section className="dossier-panel money-section">
+        <h2 className="dossier-title">Add transaction</h2>
         {error && <div className="auth-error">{error}</div>}
         {!showForm ? (
-          <button type="button" className="btn btn-primary" onClick={() => setShowForm(true)}>Add transaction</button>
+          <button type="button" className="btn btn-ember" onClick={() => setShowForm(true)}>Add transaction</button>
         ) : (
           <form onSubmit={handleSubmit} className="money-form">
+            <label className="input-label" htmlFor="tx-type">Type</label>
+            <select id="tx-type" className="input" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
+              <option value="spend">Spend</option>
+              <option value="receive">Receive</option>
+            </select>
             <input className="input" type="number" step="0.01" placeholder="Amount" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} required />
             <input className="input" placeholder="Category (e.g. food)" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
             <input className="input" placeholder="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
             <div className="form-actions">
-              <button type="submit" className="btn btn-primary">Add</button>
-              <button type="button" className="btn btn-ghost" onClick={() => setShowForm(false)}>Cancel</button>
+              <button type="submit" className="btn btn-ember">Add</button>
+              <button type="button" className="btn btn-ghost" onClick={() => { setShowForm(false); setForm({ amount: '', category: '', description: '', type: 'spend' }); }}>Cancel</button>
             </div>
           </form>
         )}

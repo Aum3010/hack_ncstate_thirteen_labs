@@ -1,29 +1,44 @@
+/* ── DaisyDisk-style hero chart ── */
 .hero-pie {
-  margin-bottom: 1.5rem;
-}
-
-.hero-card {
-  padding: 1.5rem;
+  position: relative;
+  width: 100%;
+  min-height: calc(100vh - 80px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  padding: 1rem 1rem 2rem;
 }
 
 .hero-pie-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1rem;
+  width: 100%;
+  max-width: 700px;
+  padding: 0.5rem 0;
+  margin-bottom: 0.5rem;
 }
 
 .hero-title {
-  font-size: 1.1rem;
-  color: var(--neon-green);
+  font-size: 1.25rem;
+  font-family: var(--font-display);
+  color: var(--neon-blue);
   margin: 0;
+  letter-spacing: 0.04em;
+  text-shadow: 0 0 12px rgba(0, 212, 255, 0.3);
 }
 
+/* Chart container -- main hero, large and prominent */
 .hero-pie-chart-wrap {
   position: relative;
-  min-height: 280px;
+  width: 92vmin;
+  max-width: 720px;
+  aspect-ratio: 1 / 1;
 }
 
+/* Center label inside the donut hole */
 .hero-pie-center {
   position: absolute;
   top: 50%;
@@ -31,36 +46,40 @@
   transform: translate(-50%, -50%);
   text-align: center;
   pointer-events: none;
+  z-index: 2;
 }
 
 .hero-total {
   display: block;
-  font-size: 1.5rem;
+  font-size: 2.8rem;
   font-family: var(--font-mono);
-  color: var(--neon-blue);
+  color: var(--ember-amber);
+  letter-spacing: 0.02em;
+  text-shadow: 0 0 40px rgba(217, 119, 6, 0.4);
+  line-height: 1.1;
 }
 
 .hero-sublabel {
-  font-size: 0.75rem;
+  display: block;
+  font-size: 0.9rem;
   color: var(--text-muted);
+  letter-spacing: 0.06em;
+  margin-top: 0.35rem;
 }
 
-.hero-loading,
-.hero-error {
-  color: var(--text-muted);
-  padding: 2rem;
-  text-align: center;
+/* Recharts cells: pointer cursor, transition on hover */
+.hero-pie-chart-wrap .recharts-pie-sector {
+  cursor: pointer;
+  transition: opacity 0.2s ease;
 }
 
-.hero-error {
-  color: var(--neon-pink);
-}
-
+/* Legend below chart */
 .hero-legend-inline {
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem;
-  margin-top: 1rem;
+  gap: 1.25rem;
+  justify-content: center;
+  margin-top: 1.25rem;
   font-size: 0.9rem;
   color: var(--text-muted);
 }
@@ -68,13 +87,101 @@
 .hero-legend-item {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.45rem;
+  cursor: pointer;
+  padding: 0.3rem 0.6rem;
+  border-radius: 4px;
+  transition: background 0.2s, color 0.2s;
+}
+.hero-legend-item:hover {
+  background: rgba(217, 119, 6, 0.1);
+  color: var(--text);
+}
+.hero-legend-item.active {
+  background: rgba(217, 119, 6, 0.18);
+  color: var(--ember-amber);
 }
 
 .hero-dot {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
+  border: 1px solid rgba(217, 119, 6, 0.25);
+  flex-shrink: 0;
+}
+
+/* ── Detail panel (slides in when a segment is clicked) ── */
+.hero-detail-panel {
+  width: 100%;
+  max-width: 680px;
+  margin-top: 1.5rem;
+  padding: 1.25rem 1.5rem;
+  background: var(--tweed-charcoal);
+  border: 1px solid var(--overcoat-brown);
+  border-left: 5px solid var(--ember-amber);
+  border-radius: 8px;
+  box-shadow: var(--shadow-key-light);
+  animation: slideUp 0.25s ease-out;
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.hero-detail-title {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  color: var(--ember-amber);
+  margin: 0 0 0.5rem;
+  letter-spacing: 0.03em;
+}
+.hero-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0.3rem 0;
+  font-size: 0.9rem;
+}
+.hero-detail-label {
+  color: var(--text-muted);
+}
+.hero-detail-value {
+  font-family: var(--font-mono);
+  color: var(--text);
+}
+.hero-detail-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
+  margin-top: 0.5rem;
+  overflow: hidden;
+}
+.hero-detail-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+.hero-detail-close {
+  margin-top: 0.75rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+}
+.hero-detail-close:hover {
+  color: var(--ember-amber);
+}
+
+/* Loading / error states */
+.hero-loading,
+.hero-error {
+  color: var(--text-muted);
+  padding: 2rem;
+  text-align: center;
+}
+.hero-error {
+  color: var(--neon-pink);
 }
 
 .btn-sm {

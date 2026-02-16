@@ -5,10 +5,11 @@ import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import Onboarding from './pages/Onboarding'
+import Bills from './pages/Bills'
 import Calendar from './pages/Calendar'
-import Money from './pages/Money'
-import Risk from './pages/Risk'
 import WhatIfSimulator from './pages/WhatIfSimulator'
+import Portfolio from './pages/Portfolio'
+import Experiences from './pages/Experiences'
 import { getMe } from './api/auth'
 
 export default function App() {
@@ -32,22 +33,28 @@ export default function App() {
   }
 
   const needsOnboarding = user && !user.onboarding_completed
+  const needsProfile = user && !user.email && !user.username
+
+  const redirectAfterLogin = needsProfile ? '/' : (needsOnboarding ? '/onboarding' : '/')
 
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/login" element={user ? <Navigate to={needsOnboarding ? "/onboarding" : "/"} /> : <Login onLogin={setUser} />} />
-        <Route path="/register" element={user ? <Navigate to={needsOnboarding ? "/onboarding" : "/"} /> : <Register onRegister={setUser} />} />
-        <Route path="/" element={user ? <Layout user={user} onLogout={() => setUser(null)} /> : <Navigate to="/login" />}>
-          <Route index element={needsOnboarding ? <Navigate to="/onboarding" replace /> : <Dashboard user={user} />} />
-          <Route path="onboarding" element={<Onboarding user={user} onComplete={refreshUser} />} />
-          <Route path="bills" element={<Calendar />} />
-          <Route path="calendar" element={<Calendar />} />
-          <Route path="money" element={<Money />} />
-          <Route path="risk" element={<Risk />} />
+        <Route path="/login" element={user ? <Navigate to={redirectAfterLogin} /> : <Login onLogin={setUser} />} />
+        <Route path="/register" element={user ? <Navigate to={redirectAfterLogin} /> : <Register onRegister={setUser} />} />
+        <Route path="/" element={user ? <Layout user={user} onLogout={() => setUser(null)} onUpdate={refreshUser} /> : <Navigate to="/login" />}>
+          <Route index element={needsProfile ? <Dashboard user={user} /> : (needsOnboarding ? <Navigate to="/onboarding" replace /> : <Dashboard user={user} />)} />
+          <Route path="profile" element={<Navigate to="/" replace />} />
+          <Route path="onboarding" element={needsProfile ? <Navigate to="/profile" replace /> : <Onboarding user={user} onComplete={refreshUser} />} />
+          <Route path="bills" element={needsProfile ? <Navigate to="/profile" replace /> : <Bills />} />
+          <Route path="calendar" element={needsProfile ? <Navigate to="/profile" replace /> : <Calendar />} />
+          <Route path="money" element={<Navigate to="/" replace />} />
+          <Route path="risk" element={<Navigate to="/portfolio" replace />} />
+          <Route path="experiences" element={<Experiences />} />
           <Route path="simulator" element={<WhatIfSimulator />} />
+          <Route path="portfolio" element={needsProfile ? <Navigate to="/profile" replace /> : <Portfolio />} />
         </Route>
-        <Route path="*" element={<Navigate to={user ? (needsOnboarding ? "/onboarding" : "/") : "/login"} />} />
+        <Route path="*" element={<Navigate to={user ? (needsOnboarding ? '/onboarding' : '/') : '/login'} />} />
       </Routes>
     </BrowserRouter>
   )

@@ -1,6 +1,5 @@
 import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { connectWallet } from '../api/auth'
+import { Link, useNavigate } from 'react-router-dom'
 import { createBill } from '../api/bills'
 import { createGoal } from '../api/goals'
 import { updateMe } from '../api/users'
@@ -12,11 +11,28 @@ const PARTITION_PRESETS = [
   { label: 'Goals first', investments: 10, bill_payments: 50, short_term_goals: 40 },
 ]
 
+const MAIN_FOCUS_OPTIONS = [
+  { value: 'bills', label: 'Staying on top of bills' },
+  { value: 'saving', label: 'Saving for something specific' },
+  { value: 'investing', label: 'Investing or growing money' },
+  { value: 'tracking', label: 'Just tracking spending' },
+]
+
+const GOAL_TIME_OPTIONS = [
+  { value: 'few_months', label: 'Next few months' },
+  { value: 'this_year', label: 'This year' },
+  { value: 'long_term', label: 'Long term' },
+]
+
 export default function Onboarding({ user, onComplete }) {
   const navigate = useNavigate()
   const [step, setStep] = useState(1)
-  const [address, setAddress] = useState('')
-  const [walletError, setWalletError] = useState('')
+  const [onboardingAnswers, setOnboardingAnswers] = useState(() => ({
+    display_name: user?.onboarding_answers?.display_name ?? '',
+    main_focus: user?.onboarding_answers?.main_focus ?? '',
+    goal_time_horizon: user?.onboarding_answers?.goal_time_horizon ?? '',
+    biggest_concern: user?.onboarding_answers?.biggest_concern ?? '',
+  }))
   const [partitionConfig, setPartitionConfig] = useState(
     user?.partition_config || {
       investments: { enabled: true, target_pct: 20 },
@@ -31,21 +47,6 @@ export default function Onboarding({ user, onComplete }) {
 
   const hasWallet = user?.has_wallet
 
-  const handleWalletSubmit = async (e) => {
-    e.preventDefault()
-    setWalletError('')
-    setLoading(true)
-    try {
-      await connectWallet(address.trim())
-      onComplete?.()
-      setStep(2)
-    } catch (err) {
-      setWalletError(err.message || 'Failed to link wallet')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const applyPreset = (preset) => {
     setPartitionConfig({
       investments: { enabled: true, target_pct: preset.investments },
@@ -54,13 +55,34 @@ export default function Onboarding({ user, onComplete }) {
     })
   }
 
+  const handleAboutYouNext = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      await updateMe({
+        onboarding_answers: {
+          display_name: (onboardingAnswers.display_name || '').trim() || undefined,
+          main_focus: onboardingAnswers.main_focus || undefined,
+          goal_time_horizon: onboardingAnswers.goal_time_horizon || undefined,
+          biggest_concern: (onboardingAnswers.biggest_concern || '').trim() || undefined,
+        },
+      })
+      onComplete?.()
+      setStep(2)
+    } catch (err) {
+      setError(err.message || 'Failed to save')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handlePartitionNext = async () => {
     setLoading(true)
     setError('')
     try {
       await updateMe({ partition_config: partitionConfig })
       onComplete?.()
-      setStep(3)
+      setStep(4)
     } catch (err) {
       setError(err.message || 'Failed to save')
     } finally {
@@ -84,7 +106,7 @@ export default function Onboarding({ user, onComplete }) {
         is_recurring: true,
       })
       onComplete?.()
-      setStep(4)
+      setStep(5)
     } catch (err) {
       setError(err.message || 'Failed to add bill')
     } finally {
@@ -120,7 +142,7 @@ export default function Onboarding({ user, onComplete }) {
     <div className="onboarding">
       <div className="onboarding-card card">
         <div className="onboarding-progress">
-          {[1, 2, 3, 4].map((s) => (
+          {[1, 2, 3, 4, 5].map((s) => (
             <div
               key={s}
               className={`onboarding-dot ${step >= s ? 'active' : ''}`}
@@ -132,37 +154,95 @@ export default function Onboarding({ user, onComplete }) {
 
         {step === 1 && (
           <div className="onboarding-step">
-            <h2>Link your Solana wallet</h2>
-            <p className="text-muted">Connect your wallet to sync transactions into your pie chart.</p>
-            {hasWallet ? (
-              <p className="text-muted">Wallet already linked. You can add another or continue.</p>
-            ) : (
-              <form onSubmit={handleWalletSubmit} className="onboarding-form">
-                <input
-                  className="input"
-                  type="text"
-                  placeholder="Solana wallet address"
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                />
-                {walletError && <div className="auth-error">{walletError}</div>}
-                <button type="submit" className="btn btn-primary" disabled={loading || !address.trim()}>
-                  {loading ? 'Linking...' : 'Link wallet'}
-                </button>
-              </form>
-            )}
+            <h2>About you</h2>
+            <p className="text-muted">Quick intro so we can personalize your experience. All optional.</p>
+            <div className="onboarding-form" style={{ marginTop: '1rem' }}>
+              <input
+                className="input"
+                type="text"
+                placeholder="What should we call you? (optional)"
+                value={onboardingAnswers.display_name}
+                onChange={(e) => setOnboardingAnswers((a) => ({ ...a, display_name: e.target.value }))}
+              />
+              <label className="text-muted" style={{ display: 'block', marginTop: '0.75rem', marginBottom: '0.25rem' }}>
+                What&apos;s your main focus right now?
+              </label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {MAIN_FOCUS_OPTIONS.map((opt) => (
+                  <label key={opt.value} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <input
+                      type="radio"
+                      name="main_focus"
+                      checked={onboardingAnswers.main_focus === opt.value}
+                      onChange={() => setOnboardingAnswers((a) => ({ ...a, main_focus: opt.value }))}
+                    />
+                    {opt.label}
+                  </label>
+                ))}
+              </div>
+              <label className="text-muted" style={{ display: 'block', marginTop: '0.75rem', marginBottom: '0.25rem' }}>
+                When do you want to reach your goals?
+              </label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {GOAL_TIME_OPTIONS.map((opt) => (
+                  <label key={opt.value} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <input
+                      type="radio"
+                      name="goal_time_horizon"
+                      checked={onboardingAnswers.goal_time_horizon === opt.value}
+                      onChange={() => setOnboardingAnswers((a) => ({ ...a, goal_time_horizon: opt.value }))}
+                    />
+                    {opt.label}
+                  </label>
+                ))}
+              </div>
+              <input
+                className="input"
+                type="text"
+                placeholder="Biggest financial concern in one sentence (optional)"
+                value={onboardingAnswers.biggest_concern}
+                onChange={(e) => setOnboardingAnswers((a) => ({ ...a, biggest_concern: e.target.value }))}
+                style={{ marginTop: '0.75rem' }}
+              />
+            </div>
+            {error && <div className="auth-error">{error}</div>}
             <button
               type="button"
-              className="btn btn-secondary"
-              onClick={() => setStep(2)}
+              className="btn btn-primary"
+              onClick={handleAboutYouNext}
+              disabled={loading}
               style={{ marginTop: '1rem' }}
             >
-              {hasWallet ? 'Continue' : 'Skip for now'}
+              {loading ? 'Saving...' : 'Continue'}
             </button>
           </div>
         )}
 
         {step === 2 && (
+          <div className="onboarding-step">
+            <h2>Link your Solana wallet</h2>
+            <p className="text-muted">
+              {hasWallet
+                ? 'Wallet already linked. You can add or manage wallets in Profile.'
+                : 'You can connect your Solana wallet later in Profile.'}
+            </p>
+            {!hasWallet && (
+              <p style={{ marginTop: '0.5rem' }}>
+                <Link to="/profile">Connect wallet in Profile</Link>
+              </p>
+            )}
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => setStep(3)}
+              style={{ marginTop: '1rem' }}
+            >
+              Continue
+            </button>
+          </div>
+        )}
+
+        {step === 3 && (
           <div className="onboarding-step">
             <h2>Choose your partition mix</h2>
             <p className="text-muted">How do you want to split your budget? These become your pie chart sections.</p>
@@ -190,7 +270,7 @@ export default function Onboarding({ user, onComplete }) {
           </div>
         )}
 
-        {step === 3 && (
+        {step === 4 && (
           <div className="onboarding-step">
             <h2>Add your first bill</h2>
             <p className="text-muted">Rent, utilities, subscriptions—any recurring payment.</p>
@@ -218,7 +298,7 @@ export default function Onboarding({ user, onComplete }) {
             <button
               type="button"
               className="btn btn-ghost"
-              onClick={() => setStep(4)}
+              onClick={() => setStep(5)}
               style={{ marginTop: '0.75rem' }}
             >
               Skip
@@ -226,7 +306,7 @@ export default function Onboarding({ user, onComplete }) {
           </div>
         )}
 
-        {step === 4 && (
+        {step === 5 && (
           <div className="onboarding-step">
             <h2>Add a short-term goal</h2>
             <p className="text-muted">Trip, laptop, gadget, or experience—what are you saving for?</p>

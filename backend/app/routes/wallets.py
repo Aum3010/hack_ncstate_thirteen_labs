@@ -1,8 +1,9 @@
 import os
 from flask import Blueprint, jsonify
+from datetime import datetime
 from app import db
 from app.routes.auth import get_current_user_id
-from app.models import Wallet, Transaction
+from app.models import Wallet, Transaction, DisconnectedWallet
 from app.services.solana import fetch_and_normalize_transactions
 from app.services.backboard_ingest import ingest_user_context_to_backboard
 
@@ -41,3 +42,24 @@ def sync_wallet(wallet_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({"error": str(e)}), 502
+
+
+@wallets_bp.route("/<int:wallet_id>", methods=["DELETE"])
+def delete_wallet(wallet_id):
+    uid = get_current_user_id()
+    if not uid:
+        return jsonify({"error": "Not authenticated"}), 401
+    wallet = Wallet.query.filter_by(id=wallet_id, user_id=uid).first()
+    if not wallet:
+        return jsonify({"error": "Wallet not found"}), 404
+    address = wallet.address
+    user_id = wallet.user_id
+    rec = DisconnectedWallet.query.filter_by(address=address).first()
+    if rec:
+        rec.user_id = user_id
+        rec.disconnected_at = datetime.utcnow()
+    else:
+        db.session.add(DisconnectedWallet(address=address, user_id=user_id))
+    db.session.delete(wallet)
+    db.session.commit()
+    return jsonify({"message": "Wallet disconnected"})

@@ -1,6 +1,8 @@
-# Nightshade
+# Thirteen Labs
 
-Utility-first financial app: bill reminders, calendar, money & crypto, risk, and an AI assistant (Gemini via Backboard). Metropolitan urban noir UI.
+## 2 Line description
+
+Like Dave Ramsey in your pocket. Talk to your money, understand your spending, never miss a bill, and reach your goals in plain English using multiagents, and memory layer over cryptocurrency. Metropolitan urban noir UI.
 
 ## Tech stack
 
@@ -79,14 +81,16 @@ Set in backend `.env` or environment (for Docker full stack, use a root `.env` n
 
 ### Backboard connection (assistant)
 
-If you see **"Failed to resolve api.backboard.io"** or Backboard unavailable:
+Backboard API base URL per [docs](https://docs.backboard.io/): `https://app.backboard.io/api`. Use your API key from [Backboard Dashboard](https://app.backboard.io) → Settings → API Keys.
 
-1. **Docker:** Restart after any DNS or env change: `docker compose down` then `docker compose up -d`. The backend container uses DNS servers 8.8.8.8 and 1.1.1.1 to resolve external hosts.
-2. **Override API URL:** If resolution still fails or [Backboard's docs](https://app.backboard.io/docs) show a different base URL, set in your `.env` (root for Docker, or backend for local run):
-   - `BACKBOARD_CHAT_URL=https://<correct-host>/v1/chat`
-   - `BACKBOARD_INGEST_URL=https://<correct-host>/v1/documents`
-   Use the host Backboard documents (e.g. `app.backboard.io` if that is their API host).
-3. **Backend outside Docker:** If you run the backend on the host (`python run.py`), the host's DNS is used; fix resolution or VPN/firewall on the host, or try another network.
+If you see **"Failed to resolve app.backboard.io"** or **"NameResolutionError / Temporary failure in name resolution"**:
+
+0. **Docker Desktop on Mac:** Ensure **Swap > 0** in Settings → Resources ([known DNS bug](https://github.com/docker/for-mac/issues/7074)). Apply and restart Docker, then `docker compose down && docker compose up -d`.
+1. **extra_hosts (included):** `docker-compose.yml` adds `app.backboard.io` to the backend container's `/etc/hosts` to bypass DNS. If Backboard changes infrastructure and it stops working, run `dig +short app.backboard.io` and update the IP in `extra_hosts` under the backend service.
+2. **Docker:** Restart after env changes: `docker compose down` then `docker compose up -d`. The backend uses DNS 8.8.8.8 and 1.1.1.1. If resolution still fails, run the backend outside Docker (see step 4) to isolate whether it's container DNS or host network.
+3. **Override API base:** If Backboard provides an alternate host, set `BACKBOARD_API_BASE=https://<host>/api` in `.env` (root for Docker, or `backend/` for local run). The default is `https://app.backboard.io/api`. For document ingest, set `BACKBOARD_INGEST_URL` if needed.
+4. **Backend outside Docker:** Run `python run.py` in `backend/` on your host. The host's DNS is used; if resolution works there but not in Docker, the container may have network/DNS restrictions (VPN, firewall, or Docker network isolation).
+5. **Network checks:** Ensure outbound HTTPS works. From host: `curl -I https://app.backboard.io/api/assistants -H "X-API-Key: YOUR_KEY"` (or `docker compose exec backend curl ...` from inside the container).
 
 ## Database migrations
 

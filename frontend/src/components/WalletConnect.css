@@ -4,9 +4,31 @@
   margin-bottom: 0.75rem;
 }
 
+.wallet-connect-phantom-btn {
+  margin-bottom: 0.75rem;
+}
+
+.wallet-connect-link-existing {
+  margin-bottom: 1rem;
+}
+
+.wallet-connect-link-existing .wallet-connect-hint {
+  margin-bottom: 0.5rem;
+}
+
+.wallet-connect-or {
+  margin: 0.5rem 0;
+}
+
+.wallet-connect-toggle {
+  font-size: 0.9rem;
+  padding: 0.25rem 0;
+}
+
 .wallet-connect-form {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
   max-width: 400px;
+  margin-top: 0.75rem;
 }

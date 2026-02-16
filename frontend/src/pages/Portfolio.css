@@ -1,0 +1,387 @@
+/* ===== Portfolio Page Layout ===== */
+.portfolio-page {
+  max-width: 1100px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* ===== Urban Noir full-page scene ===== */
+.portfolio-page.portfolio-urban {
+  max-width: none;
+  width: 100%;
+  min-height: 100vh;
+  position: relative;
+  padding: 0;
+}
+
+.portfolio-scroll-container {
+  position: relative;
+  height: auto;
+  overflow: visible;
+  z-index: 1;
+}
+
+.portfolio-hud {
+  position: relative;
+  z-index: 2;
+  padding: 1rem 1.5rem 4rem;
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.portfolio-hud-title-card {
+  padding: 1rem 1.5rem;
+  border: 1px solid var(--hud-border-pink);
+  box-shadow: var(--hud-glow-pink);
+}
+
+.portfolio-urban-title {
+  margin: 0 0 0.25rem 0;
+  font-family: var(--font-display);
+  font-size: 2rem;
+  letter-spacing: 0.12em;
+  color: var(--neon-pink);
+  text-shadow: 0 0 20px rgba(255, 45, 146, 0.6);
+}
+
+.portfolio-urban-subtitle {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.portfolio-hud .section-title {
+  color: var(--neon-blue);
+  font-family: var(--font-display);
+  letter-spacing: 0.04em;
+  text-shadow: 0 0 12px rgba(0, 212, 255, 0.4);
+}
+
+.portfolio-hud .card {
+  border-color: var(--hud-border);
+  box-shadow: var(--hud-glow);
+}
+
+.portfolio-hud .portfolio-chat-user .portfolio-chat-role {
+  color: var(--neon-blue);
+}
+
+.portfolio-hud .portfolio-chat-assistant .portfolio-chat-role {
+  color: var(--neon-green);
+}
+
+.portfolio-hud .portfolio-chat-input-row .input:focus {
+  border-color: var(--neon-blue);
+  box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.25);
+}
+
+.portfolio-hud .btn-primary {
+  box-shadow: 0 0 16px rgba(0, 212, 255, 0.35);
+}
+
+.portfolio-page .page-title {
+  margin: 0;
+}
+
+/* ===== TOP HALF: two columns ===== */
+.portfolio-top {
+  display: flex;
+  gap: 1.5rem;
+  min-height: 380px;
+}
+
+.portfolio-top-left {
+  flex: 1;
+  min-width: 0;
+}
+
+.portfolio-top-right {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* --- Goal input form --- */
+.portfolio-goal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.portfolio-goal-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.portfolio-risk-select {
+  flex: 1;
+  min-width: 0;
+}
+
+/* --- Pie chart --- */
+.portfolio-pie-wrap {
+  min-height: 260px;
+}
+
+.portfolio-pie-placeholder {
+  text-align: center;
+  padding: 3rem 1rem;
+}
+
+.portfolio-error {
+  color: var(--neon-pink);
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+}
+
+/* --- Allocation levers --- */
+.portfolio-levers {
+  margin-bottom: 0.75rem;
+}
+
+.portfolio-lever-row {
+  margin-bottom: 0.5rem;
+}
+
+.portfolio-lever-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  color: var(--text);
+  margin-bottom: 0.25rem;
+}
+
+.portfolio-lever-risk {
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+.portfolio-lever-stats {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--text);
+}
+
+.portfolio-allocation-summary {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+}
+
+/* --- Savings progress --- */
+.portfolio-savings-card {
+  flex: 1;
+}
+
+.portfolio-savings-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.portfolio-savings-item {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.portfolio-savings-item:last-child {
+  border-bottom: none;
+}
+
+.portfolio-savings-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+  margin-bottom: 0.3rem;
+  color: var(--text);
+}
+
+.portfolio-savings-pct {
+  font-family: var(--font-mono);
+  color: var(--neon-green);
+}
+
+.portfolio-progress-bar {
+  height: 6px;
+  background: var(--bg-elevated);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 0.25rem;
+}
+
+.portfolio-progress-fill {
+  height: 100%;
+  background: var(--neon-green);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+  box-shadow: var(--shadow-neon-green);
+}
+
+.portfolio-savings-amounts {
+  font-size: 0.8rem;
+  font-family: var(--font-mono);
+  color: var(--text);
+}
+
+.portfolio-savings-projections {
+  display: flex;
+  justify-content: space-between;
+  font-size: 1rem;
+  font-family: var(--font-mono);
+  color: var(--text);
+  margin-top: 0.25rem;
+}
+
+.portfolio-investment-card .portfolio-savings-amounts {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.portfolio-investment-card .portfolio-savings-projections span {
+  font-size: 1.05rem;
+}
+
+/* --- AI Suggestions --- */
+.portfolio-suggestions-card {
+  flex: 1;
+}
+
+.portfolio-suggestions-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.portfolio-suggestion-item {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.portfolio-suggestion-item:last-child {
+  border-bottom: none;
+}
+
+.portfolio-suggestion-cat {
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  color: var(--neon-blue);
+  text-transform: uppercase;
+}
+
+.portfolio-suggestion-msg {
+  font-size: 0.9rem;
+  color: var(--text);
+  margin: 0.2rem 0;
+  line-height: 1.4;
+}
+
+.portfolio-suggestion-save {
+  font-size: 0.8rem;
+  font-family: var(--font-mono);
+  color: var(--neon-pink);
+}
+
+/* ===== BOTTOM HALF: Chat ===== */
+.portfolio-bottom {
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
+}
+
+.portfolio-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 300px;
+  margin-bottom: 0.75rem;
+}
+
+.portfolio-chat-empty {
+  text-align: center;
+  padding: 2rem 0;
+}
+
+.portfolio-chat-msg {
+  padding: 0.5rem;
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+}
+
+.portfolio-chat-user {
+  background: rgba(0, 212, 255, 0.08);
+}
+
+.portfolio-chat-assistant {
+  background: var(--bg-elevated);
+}
+
+.portfolio-chat-role {
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  display: block;
+  margin-bottom: 0.15rem;
+}
+
+.portfolio-chat-user .portfolio-chat-role {
+  color: var(--neon-blue);
+}
+
+.portfolio-chat-assistant .portfolio-chat-role {
+  color: var(--neon-green);
+}
+
+.portfolio-chat-text {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: pre-wrap;
+}
+
+.portfolio-chat-input-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.portfolio-chat-input-row .input {
+  flex: 1;
+}
+
+.portfolio-chat-mic {
+  min-width: 48px;
+}
+
+.portfolio-chat-speak {
+  min-width: 48px;
+}
+
+.portfolio-chat-mic-recording {
+  border-color: var(--ember-amber);
+  box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.2);
+}
+
+.portfolio-voice-error {
+  margin: 0.4rem 0 0;
+  color: var(--neon-pink);
+  font-size: 0.8rem;
+}
+
+@media (max-width: 960px) {
+  .portfolio-top {
+    flex-direction: column;
+    min-height: 0;
+  }
+}

@@ -10,5 +10,7 @@ from app.routes.orderbook import orderbook_bp
 from app.routes.goals import goals_bp
 from app.routes.dashboard import dashboard_bp
 from app.routes.insights import insights_bp
+from app.routes.portfolio import portfolio_bp
+from app.routes.experiences import experiences_bp
 from app.routes.whatif import whatif_bp
 from app.routes.optimizer import optimizer_bp

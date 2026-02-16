@@ -1,0 +1,68 @@
+.profile-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 1rem;
+}
+
+.profile-modal-panel {
+  width: 100%;
+  max-width: 32rem;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: var(--shadow-key-light);
+  border-left: 6px solid var(--ember-amber);
+}
+
+.profile-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.profile-modal-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  color: var(--ember-amber);
+}
+
+.profile-modal-close {
+  font-size: 1.5rem;
+  line-height: 1;
+  padding: 0.25rem 0.5rem;
+}
+
+.profile-modal-body {
+  overflow-y: auto;
+  padding-top: 1rem;
+  flex: 1;
+}
+
+.profile-modal-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 1.5rem 0;
+}
+
+.profile-modal-link-wrap {
+  margin: 1rem 0 0;
+}
+
+.profile-embedded .profile-section,
+.profile-embedded .profile-banner {
+  margin-bottom: 1rem;
+}
+
+.profile-embedded .dossier-panel {
+  margin-bottom: 1rem;
+}
