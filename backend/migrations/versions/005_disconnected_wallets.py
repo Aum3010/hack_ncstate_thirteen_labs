@@ -16,6 +16,14 @@ depends_on = None
 
 
 def upgrade() -> None:
+    conn = op.get_bind()
+
+    # If the table already exists (e.g. created manually or from a previous run),
+    # skip creation to keep the migration idempotent.
+    inspector = sa.inspect(conn)
+    if "disconnected_wallets" in inspector.get_table_names():
+        return
+
     op.create_table(
         "disconnected_wallets",
         sa.Column("id", sa.Integer(), nullable=False),
@@ -31,6 +39,10 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index(op.f("ix_disconnected_wallets_user_id"), table_name="disconnected_wallets")
-    op.drop_index(op.f("ix_disconnected_wallets_address"), table_name="disconnected_wallets")
-    op.drop_table("disconnected_wallets")
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+
+    if "disconnected_wallets" in inspector.get_table_names():
+        op.drop_index(op.f("ix_disconnected_wallets_user_id"), table_name="disconnected_wallets")
+        op.drop_index(op.f("ix_disconnected_wallets_address"), table_name="disconnected_wallets")
+        op.drop_table("disconnected_wallets")
