@@ -131,7 +131,7 @@
   padding: 0.75rem 1.5rem;
   background: var(--bg-card);
   border-bottom: 1px solid var(--border);
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   position: relative;
   z-index: 10; /* Above background */
 }
@@ -144,10 +144,15 @@
   font-family: var(--font-mono);
 }
 
+.layout-brand-wrap {
+  min-width: 160px;
+}
+
 .layout-nav {
   display: flex;
   gap: 0.5rem;
   flex: 1;
+  min-width: 0;
 }
 
 .layout-nav-link {
@@ -169,6 +174,8 @@
   display: flex;
   align-items: center;
   gap: 1rem;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .layout-user-email {
@@ -336,4 +343,19 @@
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 1.25rem;
+}
+
+@media (max-width: 960px) {
+  .layout-brand-wrap {
+    min-width: 160px;
+  }
+
+  .layout-header {
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+  }
+
+  .layout-user {
+    gap: 0.5rem;
+  }
 }

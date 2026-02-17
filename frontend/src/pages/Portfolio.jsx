@@ -1,10 +1,14 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts'
 import { getProfile } from '../api/users'
 import { portfolioChat, getSpendingAnalysis } from '../api/portfolio'
 import { listGoals } from '../api/goals'
 import { listTransactions } from '../api/transactions'
 import useVoiceAssistant from '../hooks/useVoiceAssistant'
+import PortfolioHeaderCard from '../components/portfolio/PortfolioHeaderCard'
+import PortfolioAllocationPanel from '../components/portfolio/PortfolioAllocationPanel'
+import PortfolioSummaryPanel from '../components/portfolio/PortfolioSummaryPanel'
+import PortfolioAssistantPanel from '../components/portfolio/PortfolioAssistantPanel'
+import PortfolioSuggestionsPanel from '../components/portfolio/PortfolioSuggestionsPanel'
 import './Portfolio.css'
 
 const RISK_OPTIONS = [
@@ -299,203 +303,51 @@ export default function Portfolio() {
     <div className="portfolio-page portfolio-urban">
       <div className="portfolio-scroll-container">
         <div className="portfolio-hud">
-          <div className="portfolio-hud-title-card card">
-            <h1 className="portfolio-urban-title">PORTFOLIO SANDBOX</h1>
-            <p className="portfolio-urban-subtitle">Scroll to ascend above the city</p>
-          </div>
+          <PortfolioHeaderCard />
 
           <div className="portfolio-top">
-
-        {/* --- TOP LEFT: Allocation Pie Chart --- */}
-        <div className="portfolio-top-left card">
-          <h2 className="section-title">Portfolio Allocation</h2>
-          <div className="portfolio-goal-row" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <select
-              className="input portfolio-risk-select"
-              value={risk}
-              onChange={(e) => {
-                const nextRisk = e.target.value
+            <PortfolioAllocationPanel
+              risk={risk}
+              riskOptions={RISK_OPTIONS}
+              onRiskChange={(nextRisk) => {
                 setRisk(nextRisk)
                 applyPreset(nextRisk)
               }}
-              aria-label="Risk tolerance"
-            >
-              {RISK_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-          </div>
-          <div className="portfolio-financial-inputs">
-            <div className="portfolio-financial-field">
-              <label className="portfolio-financial-label" htmlFor="investment-amount-input">Investment Amount</label>
-              <input
-                id="investment-amount-input"
-                type="number"
-                min="0"
-                max={MAX_FINANCIAL_INPUT}
-                step="0.01"
-                className="input"
-                placeholder="0.00"
-                value={investmentAmount}
-                onChange={onFinancialInputChange(setInvestmentAmount, setInvestmentError)}
-              />
-              <span className="portfolio-financial-preview">{formatCurrency(parsedInvestmentAmount)}</span>
-              {investmentError ? <p className="portfolio-voice-error">{investmentError}</p> : null}
-            </div>
-          </div>
-          {chartPieData.length > 0 ? (
-            <div className="portfolio-pie-wrap">
-              <ResponsiveContainer width="100%" height={260}>
-                <PieChart>
-                  <Pie
-                    data={chartPieData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={90}
-                    paddingAngle={2}
-                    label={({ name, value }) => `${name} ${formatCurrency(value)}`}
-                  >
-                    {chartPieData.map((entry) => (
-                      <Cell key={entry.name} fill={entry.fill} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(v) => formatCurrency(v)} />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          ) : null}
-          <div className="portfolio-levers">
-            {pieData.map((row) => (
-              <div key={row.key} className="portfolio-lever-row">
-                <div className="portfolio-lever-header">
-                  <span className="portfolio-lever-name">{row.name}</span>
-                </div>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  step={1}
-                  value={alloc[row.key]}
-                  onChange={(e) => onLeverChange(row.key, Number(e.target.value))}
-                />
-                <div className="portfolio-lever-stats">
-                  <span className="portfolio-lever-pct">{row.percentage}%</span>
-                  <span className="portfolio-lever-amt">{formatCurrency(row.value)}</span>
-                </div>
-              </div>
-            ))}
-            <div className="portfolio-allocation-summary">
-              <span>Total: {Object.values(alloc).reduce((a, b) => a + b, 0)}%</span>
-              <span>Investment Amount: {formatCurrency(parsedInvestmentAmount)}</span>
-            </div>
-          </div>
-        </div>
+              investmentAmount={investmentAmount}
+              onInvestmentAmountChange={onFinancialInputChange(setInvestmentAmount, setInvestmentError)}
+              investmentError={investmentError}
+              maxFinancialInput={MAX_FINANCIAL_INPUT}
+              parsedInvestmentAmount={parsedInvestmentAmount}
+              formatCurrency={formatCurrency}
+              chartPieData={chartPieData}
+              pieData={pieData}
+              alloc={alloc}
+              onLeverChange={onLeverChange}
+            />
 
         {/* --- TOP RIGHT: Suggestions + Chart Q&A --- */}
         <div className="portfolio-top-right">
-          {/* Spending suggestions (from LLM) */}
-          {spendingSuggestions.length > 0 && (
-            <div className="card portfolio-spending-card">
-              <h2 className="section-title">Spending suggestions</h2>
-              <ul className="portfolio-savings-list">
-                {spendingSuggestions.slice(0, 4).map((s, i) => (
-                  <li key={i} className="portfolio-savings-item">
-                    <span className="portfolio-suggestion-cat">{s.category}</span>
-                    <p className="text-muted" style={{ margin: '0.25rem 0 0', fontSize: '0.9rem' }}>{s.message}</p>
-                    {s.save_amount > 0 && (
-                      <span className="portfolio-save-amt">Save ~${s.save_amount.toFixed(0)}/mo</span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          <PortfolioSuggestionsPanel suggestions={spendingSuggestions} />
 
-          <div className="card portfolio-investment-card">
-            <h2 className="section-title">Investment Summary</h2>
-            <ul className="portfolio-savings-list">
-              <li className="portfolio-savings-item">
-                <div className="portfolio-savings-header">
-                  <span>Invested Amount</span>
-                  <span className="portfolio-savings-pct">{Math.round(annualReturnRate * 100)}% annual</span>
-                </div>
-                <div className="portfolio-savings-amounts">
-                  <span>{formatCurrency(investmentSummary.invested)}</span>
-                </div>
-                <div className="portfolio-savings-projections">
-                  <span>1Y Returns: {formatCurrency(investmentSummary.oneYear.returns)}</span>
-                  <span>1Y Gross: {formatCurrency(investmentSummary.oneYear.gross)}</span>
-                </div>
-                <div className="portfolio-savings-projections">
-                  <span>3Y Returns: {formatCurrency(investmentSummary.threeYear.returns)}</span>
-                  <span>3Y Gross: {formatCurrency(investmentSummary.threeYear.gross)}</span>
-                </div>
-                <div className="portfolio-savings-projections">
-                  <span>5Y Returns: {formatCurrency(investmentSummary.fiveYear.returns)}</span>
-                  <span>5Y Gross: {formatCurrency(investmentSummary.fiveYear.gross)}</span>
-                </div>
-              </li>
-            </ul>
-          </div>
+          <PortfolioSummaryPanel
+            investmentSummary={investmentSummary}
+            annualReturnRate={annualReturnRate}
+            formatCurrency={formatCurrency}
+          />
 
-          {/* Chart Explanation & Q&A (Gemini) */}
-          <div className="card portfolio-explain-card">
-            <h2 className="section-title">Chart Explanation & Q&A</h2>
-            <div className="portfolio-chat-messages" ref={chatMessagesRef}>
-              {messages.length === 0 && !chatLoading && (
-                <p className="text-muted portfolio-chat-empty">Ask about your spending, savings, or portfolio goals.</p>
-              )}
-              {messages.map((m, i) => (
-                <div key={i} className={`portfolio-chat-msg portfolio-chat-${m.role}`}>
-                  <span className="portfolio-chat-role">{m.role === 'user' ? 'You' : 'Advisor'}</span>
-                  <p className="portfolio-chat-text">{m.content}</p>
-                </div>
-              ))}
-              {chatLoading && (
-                <div className="portfolio-chat-msg portfolio-chat-assistant">
-                  <span className="portfolio-chat-role">Advisor</span>
-                  <p className="portfolio-chat-text text-muted">Thinking...</p>
-                </div>
-              )}
-            </div>
-            <div className="portfolio-chat-input-row">
-              <input
-                className="input"
-                placeholder="Ask about this allocation..."
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && sendChat()}
-              />
-              <button
-                type="button"
-                className={`btn btn-primary portfolio-chat-mic ${micState === 'recording' ? 'portfolio-chat-mic-recording' : ''}`}
-                onClick={handleVoiceInput}
-                disabled={chatLoading || micState === 'processing'}
-                aria-label="Voice input"
-                title={micState === 'recording' ? 'Stop recording' : micState === 'processing' ? 'Processing voice' : 'Voice input'}
-              >
-                {micState === 'recording' ? '■' : micState === 'processing' ? '...' : '🎤'}
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary portfolio-chat-speak"
-                onClick={handleSpeakInput}
-                disabled={chatLoading || micState === 'processing' || assistantAudio === 'playing' || !chatInput.trim()}
-                aria-label="Speak text"
-                title={assistantAudio === 'playing' ? 'Playing audio' : 'Speak typed text'}
-              >
-                {assistantAudio === 'playing' ? '...' : '🔊'}
-              </button>
-              <button type="button" className="btn btn-primary" onClick={() => sendChat()} disabled={chatLoading || micState === 'processing' || !chatInput.trim()}>
-                {chatLoading ? '...' : 'Send'}
-              </button>
-            </div>
-            {voiceError ? <p className="portfolio-voice-error">{voiceError}</p> : null}
-          </div>
+          <PortfolioAssistantPanel
+            messages={messages}
+            loading={chatLoading}
+            input={chatInput}
+            setInput={setChatInput}
+            send={() => sendChat()}
+            onVoiceInput={handleVoiceInput}
+            onSpeakInput={handleSpeakInput}
+            micState={micState}
+            assistantAudio={assistantAudio}
+            voiceError={voiceError}
+            chatMessagesRef={chatMessagesRef}
+          />
         </div>
       </div>
       </div>
