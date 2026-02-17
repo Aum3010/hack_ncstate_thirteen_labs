@@ -270,7 +270,7 @@ export default function Layout({ user, onLogout, onUpdate }) {
     { to: '/portfolio', label: 'Investments' },
     { to: '/calendar', label: 'Bill payments' },
     { to: '/experiences', label: 'Experiences' },
-    
+    { to: '/simulator', label: 'What-If Simulator' },
   ]
 
   return (

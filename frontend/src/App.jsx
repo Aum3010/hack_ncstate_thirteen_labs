@@ -7,7 +7,7 @@ import Dashboard from './pages/Dashboard'
 import Onboarding from './pages/Onboarding'
 import Bills from './pages/Bills'
 import Calendar from './pages/Calendar'
-import Money from './pages/Money'
+import WhatIfSimulator from './pages/WhatIfSimulator'
 import Portfolio from './pages/Portfolio'
 import Experiences from './pages/Experiences'
 import { getMe } from './api/auth'
@@ -51,6 +51,7 @@ export default function App() {
           <Route path="money" element={<Navigate to="/" replace />} />
           <Route path="risk" element={<Navigate to="/portfolio" replace />} />
           <Route path="experiences" element={<Experiences />} />
+          <Route path="simulator" element={<WhatIfSimulator />} />
           <Route path="portfolio" element={needsProfile ? <Navigate to="/profile" replace /> : <Portfolio />} />
         </Route>
         <Route path="*" element={<Navigate to={user ? (needsOnboarding ? '/onboarding' : '/') : '/login'} />} />
